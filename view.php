@@ -52,6 +52,7 @@ $PAGE->set_url($url);
 $PAGE->requires->css(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/video-js-6.1.0/video-js.css'));
 $PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/video-js-6.1.0/ie8/videojs-ie8.min.js'), true);
 $PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/video-js-6.1.0/video.js'), true);
+$PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/videojs-youtube-2.6.1/Youtube.min.js'), true);
 $PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.10.4/src/xapiwrapper.js'), true);
 $PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.10.4/lib/cryptojs_v3.1.2.js'), true);
 $PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/xapi-videojs.js'), true);
@@ -82,16 +83,24 @@ $front = (object)[
 ];
 ?>
 
+<?php
+function startsWith( $haystack, $needle ) {
+     $length = strlen( $needle );
+     return substr( $haystack, 0, $length ) === $needle;
+}
+?>
+
 <div class="wrapper">
     <div class="videocontent">
-        <video id="xapi-videojs" class="video-js vjs-default-skin vjs-big-play-centered" controls preload="auto" 
-            poster="<?php echo $front->poster ?>" data-setup='{"fluid": true}'>
-            <?php 
-            foreach ($front->video as $type => $source) {
-                echo '<source src="' . $source . '" type="' . $type . '">';
+        <?php
+        foreach ($front->video as $type => $source) {
+            if (startsWith($source, 'https://youtu.be') || startsWith($source, 'https://youtube.com')) {
+                echo '<video id="xapi-videojs" class="video-js vjs-default-skin vjs-big-play-centered" controls preload="auto" poster="' . $front->poster . '" data-setup=\'{ "fluid": true, "techOrder": ["youtube", "html5"], "sources": [{ "type": "video/youtube", "src": "' . $source . '"}] }\'></video>';
+            } else {
+                echo '<video id="xapi-videojs" class="video-js vjs-default-skin vjs-big-play-centered" controls preload="auto" poster="' . $front->poster . '" data-setup=\'{"fluid": true}\'><source src="' . $source . '" type="' . $type . '"></video>';
             }
-            ?>
-        </video>
+        }
+        ?>
     </div>
 </div>
 
