@@ -49,12 +49,12 @@ $url = new moodle_url('/mod/traxvideo/view.php', array('id'=>$id));
 $PAGE->set_url($url);
 
 // External file.
-$PAGE->requires->css(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/video-js-6.1.0/video-js.css'));
-$PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/video-js-6.1.0/ie8/videojs-ie8.min.js'), true);
-$PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/video-js-6.1.0/video.js'), true);
+$PAGE->requires->css(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/video-js-7.17.0/video-js.css'));
+$PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/video-js-7.17.0/video.js'), true);
 $PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/videojs-youtube-2.6.1/Youtube.min.js'), true);
-$PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.10.4/src/xapiwrapper.js'), true);
-$PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.10.4/lib/cryptojs_v3.1.2.js'), true);
+$PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/dist/xapiwrapper.min.js'), true);
+$PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/lib/cryptojs_v3.1.2.js'), true);
+$PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/lib/utf8-text-encoding.js'), true);
 $PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/xapi-videojs.js'), true);
 
 // Content header.
@@ -107,7 +107,7 @@ function startsWith( $haystack, $needle ) {
 <script type="text/javascript">
 
     ADL.XAPIWrapper.log.debug = false;
-    if (ADL.XAPIWrapper.lrs.auth == undefined) {
+    if (ADL.XAPIWrapper.lrs.actor === undefined) {
         var conf = {
             "endpoint": "<?php echo $front->endpoint ?>",
             "auth": "Basic " + toBase64('<?php echo $front->username ?>:<?php echo $front->password ?>'),
@@ -115,7 +115,7 @@ function startsWith( $haystack, $needle ) {
         };
         ADL.XAPIWrapper.changeConfig(conf);
     }
-    var activityId = "<?php echo $front->activityid ?>";
+    var activityIri = "<?php echo $front->activityid ?>";
     var activityTitle = "<?php echo $front->activityname ?>";
     var activityDesc = '';
     ADL.XAPIVideoJS("xapi-videojs");

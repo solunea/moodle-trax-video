@@ -7,7 +7,7 @@
 
         // Global Variables & common functions
         var myPlayer = videojs(target);
-        var objectID = typeof activityId !== 'undefined' ? activityId : myPlayer.currentSrc().toString();
+        var objectID = activityIri;
         var sessionID = ADL.ruuid();
         var skipPlayEvent = false;
         var sendCCSubtitle = false;
@@ -222,8 +222,8 @@
             // vet the video length
             var length = myPlayer.duration();
 
-            var ccEnabled = false;
-            var ccLanguage = "";
+            ccEnabled = false;
+            ccLanguage = "";
             
             //Enable Captions/Subtitles
             for (var i = 0; i < tracks.length; i++) {
@@ -231,8 +231,8 @@
 
                 // If it is showing then CC is enabled and determine the language
                 if (track.mode === 'showing') {
-                    var ccEnabled = true;
-                    var ccLanguage = track.language;
+                    ccEnabled = true;
+                    ccLanguage = track.language;
                 } 
             }
             // get user agent header string
@@ -335,8 +335,8 @@
 
                         // If it is showing then CC is enabled and determine the language
                         if (track.mode === 'showing') {
-                            var ccEnabled = true;
-                            var ccLanguage = track.language;
+                            ccEnabled = true;
+                            ccLanguage = track.language;
                         } 
                     }
 
