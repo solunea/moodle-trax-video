@@ -101,13 +101,16 @@
                     progress_length += v[1] - v[0];
             });
 
-            // Some video players start the video less than a second after 0, progress is compared to duration - 1 second.
+            // Some video players start the video less than a second after 0, progress is compared to duration - 2 second.
             var comparedDuration = myPlayer.duration();
-            if (comparedDuration > 1) {
-                comparedDuration = comparedDuration - 1;
+            if (comparedDuration > 2) {
+                comparedDuration = comparedDuration - 2;
             }
             var progress = 1 * (progress_length / comparedDuration).toFixed(2);
-            return Math.max(progress, 1);
+            if (progress > 1) {
+                progress = 1;
+            }
+            return progress;
         }
 
         function calculate_duration() {
