@@ -101,8 +101,13 @@
                     progress_length += v[1] - v[0];
             });
 
-            var progress = 1 * (progress_length / myPlayer.duration()).toFixed(2);
-            return progress;
+            // Some video players start the video less than a second after 0, progress is compared to duration - 1 second.
+            var comparedDuration = myPlayer.duration();
+            if (comparedDuration > 1) {
+                comparedDuration = comparedDuration - 1;
+            }
+            var progress = 1 * (progress_length / comparedDuration).toFixed(2);
+            return Math.max(progress, 1);
         }
 
         function calculate_duration() {
@@ -401,8 +406,7 @@
         });
 
         myPlayer.on("seeking", function () {
-            ADL.XAPIWrapper.log("seeking", "previousTime="+previousTime, "currentTime="+myPlayer.currentTime(), "seekStart="+seekStart);
-            // ADL.XAPIWrapper.log("seeking", previousTime, myPlayer.currentTime(), seekStart);
+            ADL.XAPIWrapper.log("seeking", "previousTime=" + previousTime, "currentTime=" + myPlayer.currentTime(), "seekStart=" + seekStart);
             // Storing the currentTime at the moment of this seeking event is done = the timeline position before the first seeking event is done.
             // This seekStart timestamp is not updated until "seeked" xAPI event is sent, with the from=[seekStart] and to=[last timeline position requested by a seeking event]
             if (seekStart === null && previousTime !== 0 || seekStart === 0) {
@@ -498,63 +502,63 @@
             // vet the video length
             var length = myPlayer.duration();
 
-                // get the current date and time and throw it into a variable for xAPI timestamp
-                var dateTime = new Date();
-                var timeStamp = dateTime.toISOString();
+            // get the current date and time and throw it into a variable for xAPI timestamp
+            var dateTime = new Date();
+            var timeStamp = dateTime.toISOString();
 
-                // get the current time position in the video
-                var resultExtTime = fixed_play_time(formatFloat(myPlayer.currentTime()));
-                start_played_segment(resultExtTime);
+            // get the current time position in the video
+            var resultExtTime = fixed_play_time(formatFloat(myPlayer.currentTime()));
+            start_played_segment(resultExtTime);
 
 
-                var playedStmt = {
-                    "actor": actor,
-                    "verb": {
-                        "id": "https://w3id.org/xapi/video/verbs/played",
-                        "display": {
-                            "en-US": "played"
-                        }
-                    },
-                    "object": {
-                        "id": objectID,
-                        "definition": {
-                            "name": {
-                                "en-US": activityTitle
-                            },
-                            "description": {
-                                "en-US": activityDesc
-                            },
-                            "type": "https://w3id.org/xapi/video/activity-type/video"
+            var playedStmt = {
+                "actor": actor,
+                "verb": {
+                    "id": "https://w3id.org/xapi/video/verbs/played",
+                    "display": {
+                        "en-US": "played"
+                    }
+                },
+                "object": {
+                    "id": objectID,
+                    "definition": {
+                        "name": {
+                            "en-US": activityTitle
                         },
-                        "objectType": "Activity"
-                    },
-                    "result": {
-                        "extensions": {
-                            "https://w3id.org/xapi/video/extensions/time": resultExtTime,
-                        }
-                    },
-                    "context": {
-                        "contextActivities": {
-                            "category": [{
-                                "id": "https://w3id.org/xapi/video"
-                            }]
+                        "description": {
+                            "en-US": activityDesc
                         },
-                        "extensions": {
-                            "https://w3id.org/xapi/video/extensions/length": length,
-                            "https://w3id.org/xapi/video/extensions/session-id": sessionID
-
-                        }
+                        "type": "https://w3id.org/xapi/video/activity-type/video"
                     },
-                    "timestamp": timeStamp
-                };
+                    "objectType": "Activity"
+                },
+                "result": {
+                    "extensions": {
+                        "https://w3id.org/xapi/video/extensions/time": resultExtTime,
+                    }
+                },
+                "context": {
+                    "contextActivities": {
+                        "category": [{
+                            "id": "https://w3id.org/xapi/video"
+                        }]
+                    },
+                    "extensions": {
+                        "https://w3id.org/xapi/video/extensions/length": length,
+                        "https://w3id.org/xapi/video/extensions/session-id": sessionID
 
-                playedStmt = add_registration_if_exists(playedStmt);
-                //send played statement to the LRS
-                ADL.XAPIWrapper.log("played statement sent");
-                ADL.XAPIWrapper.sendStatement(playedStmt, function (resp, obj) {
-                    ADL.XAPIWrapper.log("Response from LRS: " + resp.status + " - " + resp.statusText);
-                });
-                ADL.XAPIWrapper.log(playedStmt);
+                    }
+                },
+                "timestamp": timeStamp
+            };
+
+            playedStmt = add_registration_if_exists(playedStmt);
+            //send played statement to the LRS
+            ADL.XAPIWrapper.log("played statement sent");
+            ADL.XAPIWrapper.sendStatement(playedStmt, function (resp, obj) {
+                ADL.XAPIWrapper.log("Response from LRS: " + resp.status + " - " + resp.statusText);
+            });
+            ADL.XAPIWrapper.log(playedStmt);
         });
 
         /***************************************************************************************/
@@ -562,79 +566,79 @@
         /*************************************************************************************/
 
         myPlayer.on("pause", function () {
-                // get the current date and time and throw it into a variable for xAPI timestamp
-                var dateTime = new Date();
-                var timeStamp = dateTime.toISOString();
+            // get the current date and time and throw it into a variable for xAPI timestamp
+            var dateTime = new Date();
+            var timeStamp = dateTime.toISOString();
 
-                // get the video length
-                var length = myPlayer.duration();
+            // get the video length
+            var length = myPlayer.duration();
 
-                // get the current time position in the video
-                var resultExtTime = formatFloat(myPlayer.currentTime());
-                end_played_segment(resultExtTime);
+            // get the current time position in the video
+            var resultExtTime = formatFloat(myPlayer.currentTime());
+            end_played_segment(resultExtTime);
 
-                // get the progress percentage and put it in a variable called progress
-                var progress = get_progress();
-                ADL.XAPIWrapper.log("video progress percentage:" + progress + ".");
+            // get the progress percentage and put it in a variable called progress
+            var progress = get_progress();
+            ADL.XAPIWrapper.log("video progress percentage:" + progress + ".");
 
 
-                if (progress >= 1) {
-                    send_completed();
+            if (progress >= 1) {
+                send_completed();
 
-                }
-                var pausedStmt = {
-                    "actor": actor,
-                    "verb": {
-                        "id": "https://w3id.org/xapi/video/verbs/paused",
-                        "display": {
-                            "en-US": "paused"
-                        }
-                    },
-                    "object": {
-                        "id": objectID,
-                        "definition": {
-                            "name": {
-                                "en-US": activityTitle
-                            },
-                            "description": {
-                                "en-US": activityDesc
-                            },
-                            "type": "https://w3id.org/xapi/video/activity-type/video"
+            }
+            var pausedStmt = {
+                "actor": actor,
+                "verb": {
+                    "id": "https://w3id.org/xapi/video/verbs/paused",
+                    "display": {
+                        "en-US": "paused"
+                    }
+                },
+                "object": {
+                    "id": objectID,
+                    "definition": {
+                        "name": {
+                            "en-US": activityTitle
                         },
-                        "objectType": "Activity"
-                    },
-                    "result": {
-                        "extensions": {
-                            "https://w3id.org/xapi/video/extensions/time": resultExtTime,
-                            "https://w3id.org/xapi/video/extensions/progress": progress,
-                            "https://w3id.org/xapi/video/extensions/played-segments": played_segments
-                        }
-                    },
-                    "context": {
-                        "contextActivities": {
-                            "category": [{
-                                "id": "https://w3id.org/xapi/video"
-                            }]
+                        "description": {
+                            "en-US": activityDesc
                         },
-                        "extensions": {
-                            "https://w3id.org/xapi/video/extensions/length": length,
-                            "https://w3id.org/xapi/video/extensions/session-id": sessionID
-
-                        }
+                        "type": "https://w3id.org/xapi/video/activity-type/video"
                     },
-                    "timestamp": timeStamp
-                };
+                    "objectType": "Activity"
+                },
+                "result": {
+                    "extensions": {
+                        "https://w3id.org/xapi/video/extensions/time": resultExtTime,
+                        "https://w3id.org/xapi/video/extensions/progress": progress,
+                        "https://w3id.org/xapi/video/extensions/played-segments": played_segments
+                    }
+                },
+                "context": {
+                    "contextActivities": {
+                        "category": [{
+                            "id": "https://w3id.org/xapi/video"
+                        }]
+                    },
+                    "extensions": {
+                        "https://w3id.org/xapi/video/extensions/length": length,
+                        "https://w3id.org/xapi/video/extensions/session-id": sessionID
 
-                pausedStmt = add_registration_if_exists(pausedStmt);
-                //send paused statement to the LRS
-                ADL.XAPIWrapper.log("paused statement sent");
-                ADL.XAPIWrapper.sendStatement(pausedStmt, function (resp, obj) {
-                    ADL.XAPIWrapper.log("Response from LRS: " + resp.status + " - " + resp.statusText);
-                });
-                ADL.XAPIWrapper.log(pausedStmt);
+                    }
+                },
+                "timestamp": timeStamp
+            };
 
-                if (terminate_player)
-                    TerminateMyPlayer();
+            pausedStmt = add_registration_if_exists(pausedStmt);
+            //send paused statement to the LRS
+            ADL.XAPIWrapper.log("paused statement sent");
+            ADL.XAPIWrapper.sendStatement(pausedStmt, function (resp, obj) {
+                ADL.XAPIWrapper.log("Response from LRS: " + resp.status + " - " + resp.statusText);
+            });
+            ADL.XAPIWrapper.log(pausedStmt);
+
+            if (terminate_player)
+                TerminateMyPlayer();
         });
 
 
@@ -668,6 +672,9 @@
             next_completion_check = currentTimestamp + remaining_seconds.toFixed(3) * 1000;
             ADL.XAPIWrapper.log("Progress: " + progress + " currentTimestamp: " + currentTimestamp + " next completion check in " + (next_completion_check - currentTimestamp) / 1000 + " seconds");
 
+            if (progress >= 1) {
+                send_completed();
+            }
         }
 
         function send_completed() {
