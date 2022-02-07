@@ -396,18 +396,18 @@
         /*************************************************************************************/
 
         myPlayer.on("userinactive", function () {
-            console.log("userinactive");
+            ADL.XAPIWrapper.log("userinactive");
             send_seeked();
         });
 
         myPlayer.on("seeking", function () {
-            console.log("seeking", "previousTime="+previousTime, "currentTime="+myPlayer.currentTime(), "seekStart="+seekStart);
+            ADL.XAPIWrapper.log("seeking", "previousTime="+previousTime, "currentTime="+myPlayer.currentTime(), "seekStart="+seekStart);
             // ADL.XAPIWrapper.log("seeking", previousTime, myPlayer.currentTime(), seekStart);
             // Storing the currentTime at the moment of this seeking event is done = the timeline position before the first seeking event is done.
             // This seekStart timestamp is not updated until "seeked" xAPI event is sent, with the from=[seekStart] and to=[last timeline position requested by a seeking event]
             if (seekStart === null && previousTime !== 0 || seekStart === 0) {
                 seekStart = previousTime;
-                console.log('seek start: ' + seekStart);
+                ADL.XAPIWrapper.log('seek start: ' + seekStart);
             }
         });
 
