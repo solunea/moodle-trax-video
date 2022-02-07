@@ -400,6 +400,15 @@
         });
 
         /***************************************************************************************/
+        /***** VIDEO.JS ended Event | xAPI Paused Statement ********************/
+        /*************************************************************************************/
+
+        myPlayer.on("ended", function () {
+            ADL.XAPIWrapper.log("ended");
+            send_paused();
+        });
+
+        /***************************************************************************************/
         /***** VIDEO.JS Seeking/UserInactive Event | xAPI Seeked Statement ********************/
         /*************************************************************************************/
 
@@ -569,6 +578,11 @@
         /*************************************************************************************/
 
         myPlayer.on("pause", function () {
+            send_paused();
+        });
+
+
+        function send_paused() {
             // get the current date and time and throw it into a variable for xAPI timestamp
             var dateTime = new Date();
             var timeStamp = dateTime.toISOString();
@@ -642,8 +656,7 @@
 
             if (terminate_player)
                 TerminateMyPlayer();
-        });
-
+        }
 
         /***************************************************************************************/
         /***** VIDEO.JS Video Completion | xAPI Completed Statement **********************************/
