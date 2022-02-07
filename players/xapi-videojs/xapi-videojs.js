@@ -480,7 +480,7 @@
 
         myPlayer.on("pause", function () {
             // If the user is seeking, do not send the pause event
-            if (this.seeking() === false) {
+            if (this.seeking() === false || this.seeking() === undefined) {
                 // get the current date and time and throw it into a variable for xAPI timestamp
                 var dateTime = new Date();
                 var timeStamp = dateTime.toISOString();
