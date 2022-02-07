@@ -9,9 +9,7 @@
         var myPlayer = videojs(target);
         var objectID = activityIri;
         var sessionID = ADL.ruuid();
-        var skipPlayEvent = false;
         var sendCCSubtitle = false;
-        var volumeSliderActive = false;
         var played_segments = "";
         var played_segments_segment_start = null;
         var played_segments_segment_end = null;
@@ -29,11 +27,11 @@
 
             return +(parseFloat(number).toFixed(3));
         }
-        
+
         function add_registration_if_exists(statement) {
             if (typeof ADL.XAPIWrapper.lrs.registration == "string" && ADL.XAPIWrapper.lrs.registration.length == 36) {
-               // var registration = ADL.XAPIWrapper.lrs.registration;
-               if(typeof statement["context"] == undefined)
+                // var registration = ADL.XAPIWrapper.lrs.registration;
+                if (typeof statement["context"] == undefined)
                     statement["context"] = new Object();
 
                 statement["context"]["registration"] = ADL.XAPIWrapper.lrs.registration;
@@ -123,7 +121,7 @@
                 arr2[i][0] *= 1;
                 arr2[i][1] *= 1;
 
-                if(arr2[i][1] > arr2[i][0])
+                if (arr2[i][1] > arr2[i][0])
                     duration += arr2[i][1] - arr2[i][0];
             });
 
@@ -144,7 +142,7 @@
 //                ADL.XAPIWrapper.log('yes there is a registration in xAPIWrapper');
                 myparams['registration'] = ADL.XAPIWrapper.lrs.registration;
             }
-            
+
             ret = ADL.XAPIWrapper.getStatements(myparams);
             if (ret != undefined &&
                 ret.statements != undefined &&
@@ -177,8 +175,7 @@
                 ret.statements[0]['result']['extensions']['https://w3id.org/xapi/video/extensions/progress'] != undefined
             ) {
                 var progress = 1 * ret.statements[0]['result']['extensions']['https://w3id.org/xapi/video/extensions/progress'];
-                if (progress == 1)
-                {
+                if (progress == 1) {
                     completion_sent = true;
                     ADL.XAPIWrapper.log(progress);
                 }
@@ -198,6 +195,7 @@
 
         /***************************************************************************************/
         /***** VIDEO.JS Player xAPI Initialized Statement ********************/
+
         /*************************************************************************************/
 
         function send_initialized() {
@@ -218,13 +216,13 @@
 
             // get the playback rate of the video
             var playbackRate = myPlayer.playbackRate();
-            
+
             // vet the video length
             var length = myPlayer.duration();
 
             ccEnabled = false;
             ccLanguage = "";
-            
+
             //Enable Captions/Subtitles
             for (var i = 0; i < tracks.length; i++) {
                 var track = tracks[i];
@@ -233,7 +231,7 @@
                 if (track.mode === 'showing') {
                     ccEnabled = true;
                     ccLanguage = track.language;
-                } 
+                }
             }
             // get user agent header string
             var userAgent = navigator.userAgent.toString();
@@ -293,7 +291,7 @@
                 "timestamp": timeStamp
             };
 
-            if(ccEnabled == true) {
+            if (ccEnabled == true) {
                 initializedStmt["context"]["extensions"]["https://w3id.org/xapi/video/extensions/cc-subtitle-lang"] = ccLanguage; //Add Language extention only when ccEnabled
             }
 
@@ -320,7 +318,7 @@
                     sendCCSubtitle = false;
                     ccEnabled = false;
                     ccLanguage = "";
-                    
+
 
                     // get the current date and time and throw it into a variable for xAPI timestamp
                     var dateTime = new Date();
@@ -337,7 +335,7 @@
                         if (track.mode === 'showing') {
                             ccEnabled = true;
                             ccLanguage = track.language;
-                        } 
+                        }
                     }
 
                     // prepare the xAPI interacted statement
@@ -394,21 +392,111 @@
         });
 
         /***************************************************************************************/
+        /***** VIDEO.JS Seeking/UserInactive Event | xAPI Seeked Statement ********************/
+        /*************************************************************************************/
+
+        myPlayer.on("userinactive", function () {
+            console.log("userinactive");
+            send_seeked();
+        });
+
+        myPlayer.on("seeking", function () {
+            console.log("seeking", "previousTime="+previousTime, "currentTime="+myPlayer.currentTime(), "seekStart="+seekStart);
+            // ADL.XAPIWrapper.log("seeking", previousTime, myPlayer.currentTime(), seekStart);
+            // Storing the currentTime at the moment of this seeking event is done = the timeline position before the first seeking event is done.
+            // This seekStart timestamp is not updated until "seeked" xAPI event is sent, with the from=[seekStart] and to=[last timeline position requested by a seeking event]
+            if (seekStart === null && previousTime !== 0 || seekStart === 0) {
+                seekStart = previousTime;
+                console.log('seek start: ' + seekStart);
+            }
+        });
+
+        function send_seeked() {
+            if (seekStart !== null) {
+                if (Math.abs(seekStart - currentTime) < 1) //Ignore seeking if seeked for less than 1 second gap in video
+                {
+                    seekStart = null; //reset seek
+                    return;
+                }
+                ADL.XAPIWrapper.log("seeked:" + seekStart + "[.]" + currentTime);
+
+                // get the current date and time and throw it into a variable for xAPI timestamp
+                var dateTime = new Date();
+                var timeStamp = dateTime.toISOString();
+
+                // change the played segment in the video
+                end_played_segment(seekStart);
+                start_played_segment(currentTime);
+
+                var seekedStmt = {
+                    "actor": actor,
+                    "verb": {
+                        "id": "https://w3id.org/xapi/video/verbs/seeked",
+                        "display": {
+                            "en-US": "seeked"
+                        }
+                    },
+                    "object": {
+                        "id": objectID,
+                        "definition": {
+                            "name": {
+                                "en-US": activityTitle
+                            },
+                            "description": {
+                                "en-US": activityDesc
+                            },
+                            "type": "https://w3id.org/xapi/video/activity-type/video"
+                        },
+                        "objectType": "Activity"
+                    },
+                    "result": {
+                        "extensions": {
+                            "https://w3id.org/xapi/video/extensions/time-from": seekStart,
+                            "https://w3id.org/xapi/video/extensions/time-to": currentTime
+                        }
+                    },
+                    "context": {
+                        "contextActivities": {
+                            "category": [{
+                                "id": "https://w3id.org/xapi/video"
+                            }]
+                        },
+                        "extensions": {
+                            "https://w3id.org/xapi/video/extensions/session-id": sessionID
+
+                        }
+                    },
+                    "timestamp": timeStamp
+                };
+
+                seekedStmt = add_registration_if_exists(seekedStmt);
+
+                seekStart = null; //reset seek
+
+                //send seeked statement to the LRS
+                ADL.XAPIWrapper.log("seeked statement sent");
+                ADL.XAPIWrapper.sendStatement(seekedStmt, function (resp, obj) {
+                    ADL.XAPIWrapper.log("Response from LRS: " + resp.status + " - " + resp.statusText);
+                });
+                ADL.XAPIWrapper.log(seekedStmt);
+            }
+        }
+
+        /***************************************************************************************/
         /***** VIDEO.JS Played Event | xAPI Played Statement **********************************/
         /*************************************************************************************/
 
         myPlayer.on("play", function () {
             //	myPlayer.currentTime(20);
-            if (started == false) {
+            if (started === false) {
                 video_start();
             }
-            
+
+            // Check that if a seeking was done and not yet treated by a userinactive event listener. If exists, seeked statement is sent.
+            send_seeked();
+
             // vet the video length
             var length = myPlayer.duration();
-
-            // If user is seaking, skip the play event
-            if (skipPlayEvent !== true) {
-                seekStart = null; //reset seek if not reset
 
                 // get the current date and time and throw it into a variable for xAPI timestamp
                 var dateTime = new Date();
@@ -467,11 +555,6 @@
                     ADL.XAPIWrapper.log("Response from LRS: " + resp.status + " - " + resp.statusText);
                 });
                 ADL.XAPIWrapper.log(playedStmt);
-            } else {
-                // Seek statement has been sent, resume play events
-                skipPlayEvent = false;
-                send_seeked();
-            }
         });
 
         /***************************************************************************************/
@@ -479,12 +562,10 @@
         /*************************************************************************************/
 
         myPlayer.on("pause", function () {
-            // If the user is seeking, do not send the pause event
-            if (this.seeking() === false || this.seeking() === undefined) {
                 // get the current date and time and throw it into a variable for xAPI timestamp
                 var dateTime = new Date();
                 var timeStamp = dateTime.toISOString();
-                
+
                 // get the video length
                 var length = myPlayer.duration();
 
@@ -495,70 +576,65 @@
                 // get the progress percentage and put it in a variable called progress
                 var progress = get_progress();
                 ADL.XAPIWrapper.log("video progress percentage:" + progress + ".");
-            
+
 
                 if (progress >= 1) {
                     send_completed();
 
                 }
-                    var pausedStmt = {
-                        "actor": actor,
-                        "verb": {
-                            "id": "https://w3id.org/xapi/video/verbs/paused",
-                            "display": {
-                                "en-US": "paused"
-                            }
-                        },
-                        "object": {
-                            "id": objectID,
-                            "definition": {
-                                "name": {
-                                    "en-US": activityTitle
-                                },
-                                "description": {
-                                    "en-US": activityDesc
-                                },
-                                "type": "https://w3id.org/xapi/video/activity-type/video"
+                var pausedStmt = {
+                    "actor": actor,
+                    "verb": {
+                        "id": "https://w3id.org/xapi/video/verbs/paused",
+                        "display": {
+                            "en-US": "paused"
+                        }
+                    },
+                    "object": {
+                        "id": objectID,
+                        "definition": {
+                            "name": {
+                                "en-US": activityTitle
                             },
-                            "objectType": "Activity"
-                        },
-                        "result": {
-                            "extensions": {
-                                "https://w3id.org/xapi/video/extensions/time": resultExtTime,
-                                "https://w3id.org/xapi/video/extensions/progress": progress,
-                                "https://w3id.org/xapi/video/extensions/played-segments": played_segments
-                            }
-                        },
-                        "context": {
-                            "contextActivities": {
-                                "category": [{
-                                    "id": "https://w3id.org/xapi/video"
-                                }]
+                            "description": {
+                                "en-US": activityDesc
                             },
-                            "extensions": {
-                                "https://w3id.org/xapi/video/extensions/length": length,
-                                "https://w3id.org/xapi/video/extensions/session-id": sessionID
-
-                            }
+                            "type": "https://w3id.org/xapi/video/activity-type/video"
                         },
-                        "timestamp": timeStamp
-                    };
+                        "objectType": "Activity"
+                    },
+                    "result": {
+                        "extensions": {
+                            "https://w3id.org/xapi/video/extensions/time": resultExtTime,
+                            "https://w3id.org/xapi/video/extensions/progress": progress,
+                            "https://w3id.org/xapi/video/extensions/played-segments": played_segments
+                        }
+                    },
+                    "context": {
+                        "contextActivities": {
+                            "category": [{
+                                "id": "https://w3id.org/xapi/video"
+                            }]
+                        },
+                        "extensions": {
+                            "https://w3id.org/xapi/video/extensions/length": length,
+                            "https://w3id.org/xapi/video/extensions/session-id": sessionID
 
-                    pausedStmt = add_registration_if_exists(pausedStmt);
-                    //send paused statement to the LRS
-                    ADL.XAPIWrapper.log("paused statement sent");
-                    ADL.XAPIWrapper.sendStatement(pausedStmt, function (resp, obj) {
-                        ADL.XAPIWrapper.log("Response from LRS: " + resp.status + " - " + resp.statusText);
-                    });
-                    ADL.XAPIWrapper.log(pausedStmt);
-              
+                        }
+                    },
+                    "timestamp": timeStamp
+                };
+
+                pausedStmt = add_registration_if_exists(pausedStmt);
+                //send paused statement to the LRS
+                ADL.XAPIWrapper.log("paused statement sent");
+                ADL.XAPIWrapper.sendStatement(pausedStmt, function (resp, obj) {
+                    ADL.XAPIWrapper.log("Response from LRS: " + resp.status + " - " + resp.statusText);
+                });
+                ADL.XAPIWrapper.log(pausedStmt);
+
                 if (terminate_player)
                     TerminateMyPlayer();
-            } else {
-                //skip subsequent play Event
-                skipPlayEvent = true;
-            }
-
         });
 
 
@@ -567,12 +643,12 @@
         /*************************************************************************************/
         var next_completion_check = 0;
         var completion_sent = false;
+
         function check_completion() {
-			if(completion_sent)
-			{
+            if (completion_sent) {
                 ADL.XAPIWrapper.log("completed statement already sent");
-				return;
-			}
+                return;
+            }
 
             var currentTimestamp = (new Date()).getTime();
 
@@ -591,19 +667,18 @@
             //ADL.XAPIWrapper.log("remaining_seconds: " + remaining_seconds);
             next_completion_check = currentTimestamp + remaining_seconds.toFixed(3) * 1000;
             ADL.XAPIWrapper.log("Progress: " + progress + " currentTimestamp: " + currentTimestamp + " next completion check in " + (next_completion_check - currentTimestamp) / 1000 + " seconds");
-       
+
         }
 
         function send_completed() {
-            if(completion_sent)
-            {
+            if (completion_sent) {
                 ADL.XAPIWrapper.log("completed statement already sent");
                 return;
             }
             // get the current date and time and throw it into a variable for xAPI timestamp
             var dateTime = new Date();
             var timeStamp = dateTime.toISOString();
-            
+
             var length = myPlayer.duration();
 
             // get the progress percentage and put it in a variable called progress
@@ -653,7 +728,7 @@
                         "https://w3id.org/xapi/video/extensions/session-id": sessionID,
                         "https://w3id.org/xapi/video/extensions/length": length,
                         "https://w3id.org/xapi/video/extensions/completion-threshold": "1.0"
-                        
+
 
                     }
                 },
@@ -689,87 +764,9 @@
             check_volumechange();
         });
 
-        myPlayer.on("seeking", function () {
-            ADL.XAPIWrapper.log("seeking", previousTime, myPlayer.currentTime(), seekStart);
-            if (seekStart === null && previousTime != 0 || seekStart == 0) {
-                seekStart = previousTime;
-                ADL.XAPIWrapper.log('seek start: ' + seekStart);
-            }
-        });
-
-
-        function send_seeked() {
-            if (Math.abs(seekStart - currentTime) < 1) //Ignore seeking if seeked for less than 1 second gap in video
-            {
-                seekStart = null; //reset seek
-                return;
-            }
-            ADL.XAPIWrapper.log("seeked:" + seekStart + "[.]" + currentTime);
-
-            // get the current date and time and throw it into a variable for xAPI timestamp
-            var dateTime = new Date();
-            var timeStamp = dateTime.toISOString();
-
-            // change the played segment in the video
-            end_played_segment(seekStart);
-            start_played_segment(currentTime);
-
-            var seekedStmt = {
-                "actor": actor,
-                "verb": {
-                    "id": "https://w3id.org/xapi/video/verbs/seeked",
-                    "display": {
-                        "en-US": "seeked"
-                    }
-                },
-                "object": {
-                    "id": objectID,
-                    "definition": {
-                        "name": {
-                            "en-US": activityTitle
-                        },
-                        "description": {
-                            "en-US": activityDesc
-                        },
-                        "type": "https://w3id.org/xapi/video/activity-type/video"
-                    },
-                    "objectType": "Activity"
-                },
-                "result": {
-                    "extensions": {
-                        "https://w3id.org/xapi/video/extensions/time-from": seekStart,
-                        "https://w3id.org/xapi/video/extensions/time-to": currentTime
-                    }
-                },
-                "context": {
-                    "contextActivities": {
-                        "category": [{
-                            "id": "https://w3id.org/xapi/video"
-                        }]
-                    },
-                    "extensions": {
-                        "https://w3id.org/xapi/video/extensions/session-id": sessionID
-
-                    }
-                },
-                "timestamp": timeStamp
-            };
-
-            seekedStmt = add_registration_if_exists(seekedStmt);
-
-            seekStart = null; //reset seek
-
-            //send seeked statement to the LRS
-            ADL.XAPIWrapper.log("seeked statement sent");
-            ADL.XAPIWrapper.sendStatement(seekedStmt, function (resp, obj) {
-                ADL.XAPIWrapper.log("Response from LRS: " + resp.status + " - " + resp.statusText);
-            });
-            ADL.XAPIWrapper.log(seekedStmt);
-        }
-
-
         /***************************************************************************************/
         /***** VIDEO.JS Modal Close Event | xAPI Terminated Statement ************************/
+
         /*************************************************************************************/
 
         function terminateModal() {
@@ -791,7 +788,7 @@
             // get the progress percentage and put it in a variable called progress
             var progress = get_progress();
             ADL.XAPIWrapper.log("video progress percentage:" + progress + ".");
-            
+
             var length = myPlayer.duration();
 
             var terminatedStmt = {
@@ -847,7 +844,6 @@
             ADL.XAPIWrapper.log(terminatedStmt);
             myPlayer.dispose();
         };
-
 
 
         /***************************************************************************************/
