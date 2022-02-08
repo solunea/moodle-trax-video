@@ -402,11 +402,11 @@
         /***************************************************************************************/
         /***** VIDEO.JS ended Event | xAPI Paused Statement ********************/
         /*************************************************************************************/
-
-        myPlayer.on("ended", function () {
-            ADL.XAPIWrapper.log("ended");
-            send_paused();
-        });
+        // Ended is ignored, because it can cause 2 "paused" xapi event, and is not sent by Youtube player.
+        // myPlayer.on("ended", function () {
+        //     ADL.XAPIWrapper.log("ended");
+        //     send_paused();
+        // });
 
         /***************************************************************************************/
         /***** VIDEO.JS Seeking/UserInactive Event | xAPI Seeked Statement ********************/
@@ -578,6 +578,7 @@
         /*************************************************************************************/
 
         myPlayer.on("pause", function () {
+            console.log("Received pause");
             send_paused();
         });
 
