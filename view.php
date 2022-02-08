@@ -52,7 +52,16 @@ $PAGE->set_url($url);
 $PAGE->requires->css(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/video-js-7.17.0/video-js.css'));
 $PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/video-js-7.17.0/video.js'), true);
 $PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/videojs-youtube-2.6.1/Youtube.min.js'), true);
+//$PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/lib/utf8-text-encoding.js'), true);
+//$PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/lib/cryptojs_v3.1.2.js'), true);
+//$PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/src/verbs.js'), true);
+//$PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/src/activitytypes.js'), true);
+//$PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/src/xapi-util.js'), true);
+//$PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/src/xapistatement.js'), true);
+//$PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/src/xapi-launch.js'), true);
+//$PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/src/xapiwrapper.js'), true);
 $PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/dist/xapiwrapper.min.js'), true);
+$PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/dist/xapiwrapper.min.js.map'), true);
 $PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/lib/cryptojs_v3.1.2.js'), true);
 $PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/lib/utf8-text-encoding.js'), true);
 $PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/xapi-videojs.js'), true);
@@ -96,6 +105,19 @@ function startsWith( $haystack, $needle ) {
         foreach ($front->video as $type => $source) {
             if (startsWith($source, 'https://youtu.be') || startsWith($source, 'https://youtube.com')) {
                 echo '<video id="xapi-videojs" class="video-js vjs-default-skin vjs-big-play-centered" controls preload="auto" poster="' . $front->poster . '" data-setup=\'{ "fluid": true, "techOrder": ["youtube", "html5"], "sources": [{ "type": "video/youtube", "src": "' . $source . '"}] }\'></video>';
+            } else if (startsWith($source, 'https://mediacenter.univ-reims.fr')) {
+                $pattern = '~https://mediacenter\.univ-reims\.fr/videos/\?video=(\w*).*~';
+                $videoUri = '';
+                $posterUri = '';
+                if (preg_match($pattern, $source, $matches)) {
+                    $videoUri = 'https://mediacenter.univ-reims.fr/videos/'.$matches[1].'/multimedia/'.$matches[1].'.mp4';
+                }
+                if ($front->poster === "") {
+                    $posterUri = 'https://mediacenter.univ-reims.fr/videos/'.$matches[1].'/preview.jpg';
+                } else {
+                    $posterUri = $front->poster;
+                }
+                echo '<video id="xapi-videojs" class="video-js vjs-default-skin vjs-big-play-centered" controls preload="auto" poster="' . $posterUri . '" data-setup=\'{"fluid": true}\'><source src="' . $videoUri . '" type="' . $type . '"></video>';
             } else {
                 echo '<video id="xapi-videojs" class="video-js vjs-default-skin vjs-big-play-centered" controls preload="auto" poster="' . $front->poster . '" data-setup=\'{"fluid": true}\'><source src="' . $source . '" type="' . $type . '"></video>';
             }
