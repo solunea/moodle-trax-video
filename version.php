@@ -24,7 +24,7 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version = 2018050804;
+$plugin->version = 2022030701;
 $plugin->requires = 2018050800;
 $plugin->component = 'mod_traxvideo';
 

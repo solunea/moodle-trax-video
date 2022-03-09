@@ -24,17 +24,27 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+class TraxVideoConfig {
+    const TRAXLIB_DISPLAY_AUTO = 0;
+    const TRAXLIB_DISPLAY_EMBED = 1;
+    const TRAXLIB_DISPLAY_FRAME = 2;
+    const TRAXLIB_DISPLAY_NEW = 3;
+    const TRAXLIB_DISPLAY_DOWNLOAD = 4;
+    const TRAXLIB_DISPLAY_OPEN = 5;
+    const TRAXLIB_DISPLAY_POPUP = 6;
+}
 
 /**
  * Mark the activity completed (if required) and trigger the course_module_viewed event.
  *
- * @param  string $eventname    event name
- * @param  stdClass $traxvideo  traxvideo object
- * @param  stdClass $course     course object
- * @param  stdClass $cm         course module object
- * @param  stdClass $context    context object
+ * @param string $eventname event name
+ * @param stdClass $traxvideo traxvideo object
+ * @param stdClass $course course object
+ * @param stdClass $cm course module object
+ * @param stdClass $context context object
  */
-function traxvideo_tigger_module_event($eventname, $traxvideo, $course, $cm, $context) {
+function traxvideo_tigger_module_event($eventname, $traxvideo, $course, $cm, $context)
+{
 
     // Trigger course_module_viewed event.
     $params = array(
@@ -53,6 +63,28 @@ function traxvideo_tigger_module_event($eventname, $traxvideo, $course, $cm, $co
         $completion = new completion_info($course);
         $completion->set_module_viewed($cm);
     }
+}
+
+function video_tag($videourl, $posterurl, $type = 'video/mp4')
+{
+    if (startsWith($videourl, 'https://youtu.be') || startsWith($videourl, 'https://youtube.com')) {
+        echo '<video id="xapi-videojs" class="video-js vjs-default-skin vjs-big-play-centered" controls preload="auto" poster="' . $posterurl . '" data-setup=\'{ "fluid": true, "techOrder": ["youtube", "html5"], "sources": [{ "type": "video/youtube", "src": "' . $videourl . '"}] }\'></video>';
+    } else if (startsWith($videourl, 'https://mediacenter.univ-reims.fr')) {
+        $pattern = '~https://mediacenter\.univ-reims\.fr/videos/\?video=(\w*).*~';
+        $videoUri = '';
+        if (preg_match($pattern, $videourl, $matches)) {
+            $videoUri = 'https://mediacenter.univ-reims.fr/videos/' . $matches[1] . '/multimedia/' . $matches[1] . '.mp4';
+        }
+        if ($posterurl === "") {
+            $posterUri = 'https://mediacenter.univ-reims.fr/videos/' . $matches[1] . '/preview.jpg';
+        } else {
+            $posterUri = $posterurl;
+        }
+        echo '<video id="xapi-videojs" class="video-js vjs-default-skin vjs-big-play-centered" controls preload="auto" poster="' . $posterUri . '" data-setup=\'{"fluid": true}\'><source src="' . $videoUri . '" type="' . $type . '"></video>';
+    } else {
+        echo '<video id="xapi-videojs" class="video-js vjs-default-skin vjs-big-play-centered" controls preload="auto" poster="' .$posterurl . '" data-setup=\'{"fluid": true}\'><source src="' . $videourl . '" type="' . $type . '"></video>';
+    }
+
 }
 
 

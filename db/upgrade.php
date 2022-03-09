@@ -44,6 +44,26 @@ function xmldb_traxvideo_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2018050801, 'traxvideo');
     }
 
+    if ($oldversion < 2022030700) {
+        $table = new xmldb_table('traxvideo');
+
+        $field = new xmldb_field('display', XMLDB_TYPE_CHAR, '255', null, null, null, null, 'sourcemp4');
+        $dbman->add_field($table, $field);
+        $field = new xmldb_field('displayoptions', XMLDB_TYPE_CHAR, '255', null, null, null, null, 'display');
+        $dbman->add_field($table, $field);
+        $field = new xmldb_field('popupwidth', XMLDB_TYPE_CHAR, '255', null, null, null, null, 'displayoptions');
+        $dbman->add_field($table, $field);
+        $field = new xmldb_field('popupheight', XMLDB_TYPE_CHAR, '255', null, null, null, null, 'popupwidth');
+        $dbman->add_field($table, $field);
+    }
+
+    if ($oldversion < 2022030701) {
+         set_config('displayoptions', '0,1,3,5,6');
+         set_config('display', '0');
+         set_config('popupwidth', '620');
+         set_config('popupheight', '450');
+    }
+
     return true;
 }
 

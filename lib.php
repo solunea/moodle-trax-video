@@ -24,6 +24,28 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+///** Try the best way */
+//!defined('TRAXLIB_DISPLAY_AUTO') && define('TRAXLIB_DISPLAY_AUTO', 0);
+////const TRAXLIB_DISPLAY_AUTO = 0;
+///** Display using object tag */
+//!defined('TRAXLIB_DISPLAY_EMBED') && define('TRAXLIB_DISPLAY_EMBED', 1);
+////const TRAXLIB_DISPLAY_EMBED = 1;
+///** Display inside frame */
+//!defined('TRAXLIB_DISPLAY_FRAME') && define('TRAXLIB_DISPLAY_FRAME', 2);
+////const TRAXLIB_DISPLAY_FRAME = 2;
+///** Display normal link in new window */
+//!defined('TRAXLIB_DISPLAY_NEW') && define('TRAXLIB_DISPLAY_NEW', 3);
+////const TRAXLIB_DISPLAY_NEW = 3;
+///** Force download of file instead of display */
+//!defined('TRAXLIB_DISPLAY_DOWNLOAD') && define('TRAXLIB_DISPLAY_DOWNLOAD', 4);
+////const TRAXLIB_DISPLAY_DOWNLOAD = 4;
+///** Open directly */
+//!defined('TRAXLIB_DISPLAY_OPEN') && define('TRAXLIB_DISPLAY_OPEN', 5);
+////const TRAXLIB_DISPLAY_OPEN = 5;
+///** Open in "emulated" pop-up without navigation */
+//!defined('TRAXLIB_DISPLAY_POPUP') && define('TRAXLIB_DISPLAY_POPUP', 6);
+////const TRAXLIB_DISPLAY_POPUP = 6;
+///
 /**
  * Return the list if Moodle features this module supports.
  *
@@ -76,6 +98,8 @@ function traxvideo_add_instance($data, $mform = null) {
     // Set data.
     $data->timemodified = time();
 
+    trax_set_display_options($data);
+
     // Record it.
     $data->id = $DB->insert_record('traxvideo', $data);
     return $data->id;
@@ -94,6 +118,8 @@ function traxvideo_update_instance($data, $mform) {
     // Set data.
     $data->timemodified = time();
     $data->id = $data->instance;
+
+    trax_set_display_options($data);
 
     // Record it.
     $DB->update_record('traxvideo', $data);
@@ -136,4 +162,20 @@ function traxvideo_get_extra_capabilities() {
  */
 function traxvideo_reset_userdata($data) {
     return array();
+}
+
+/**
+ * Updates display options based on form input.
+ *
+ * Shared code used by resource_add_instance and resource_update_instance.
+ *
+ * @param object $data Data object
+ */
+function trax_set_display_options($data) {
+    $displayoptions = array();
+    if ($data->display == TRAXLIB_DISPLAY_POPUP) {
+        $displayoptions['popupwidth']  = $data->popupwidth;
+        $displayoptions['popupheight'] = $data->popupheight;
+    }
+    $data->displayoptions = serialize($displayoptions);
 }

@@ -22,9 +22,35 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-defined('MOODLE_INTERNAL') || die;
-
 if ($hassiteconfig) {
+    require_once($CFG->dirroot . '/mod/traxvideo/locallib.php');
+    $displayoptions = array(TraxVideoConfig::TRAXLIB_DISPLAY_AUTO => get_string('resourcedisplayauto'),
+        TraxVideoConfig::TRAXLIB_DISPLAY_EMBED => get_string('resourcedisplayembed'),
+        TraxVideoConfig::TRAXLIB_DISPLAY_NEW => get_string('resourcedisplaynew'),
+        TraxVideoConfig::TRAXLIB_DISPLAY_OPEN => get_string('resourcedisplayopen'),
+        TraxVideoConfig::TRAXLIB_DISPLAY_POPUP => get_string('resourcedisplaypopup'));
+    $defaultdisplayoptions = array(TraxVideoConfig::TRAXLIB_DISPLAY_AUTO,
+        TraxVideoConfig::TRAXLIB_DISPLAY_EMBED,
+        TraxVideoConfig::TRAXLIB_DISPLAY_NEW,
+        TraxVideoConfig::TRAXLIB_DISPLAY_OPEN,
+        TraxVideoConfig::TRAXLIB_DISPLAY_POPUP,
+    );
+
+//--- general settings -----------------------------------------------------------------------------------
+    $settings->add(new admin_setting_configmultiselect('traxvideo/displayoptions',
+        get_string('displayoptions', 'traxvideo'), get_string('configdisplayoptions', 'traxvideo'),
+        $defaultdisplayoptions, $displayoptions));
+
+    //--- modedit defaults -----------------------------------------------------------------------------------
+    $settings->add(new admin_setting_configselect('traxvideo/display',
+        get_string('displayselect', 'traxvideo'), get_string('displayselectexplain', 'traxvideo'), TraxVideoConfig::TRAXLIB_DISPLAY_AUTO,
+        $displayoptions));
+    $settings->add(new admin_setting_configtext('traxvideo/popupwidth',
+        get_string('popupwidth', 'traxvideo'), get_string('popupwidthexplain', 'traxvideo'), 620, PARAM_INT, 7));
+    $settings->add(new admin_setting_configtext('traxvideo/popupheight',
+        get_string('popupheight', 'traxvideo'), get_string('popupheightexplain', 'traxvideo'), 450, PARAM_INT, 7));
 
 }
+
+
 

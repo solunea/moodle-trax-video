@@ -25,8 +25,7 @@
 require_once('../../config.php');
 require_once($CFG->dirroot . '/mod/traxvideo/locallib.php');
 
-use \logstore_trax\src\controller as trax_controller;
-
+use logstore_trax\src\controller as trax_controller;
 
 // Params.
 $id = required_param('id', PARAM_INT);
@@ -42,24 +41,18 @@ $context = context_module::instance($cm->id);
 require_capability('mod/traxvideo:view', $context);
 
 // Events.
-traxvideo_tigger_module_event('course_module_viewed', $activity, $course, $cm, $context);
+if ($activity->display != TraxVideoConfig::TRAXLIB_DISPLAY_POPUP && $activity->display != TraxVideoConfig::TRAXLIB_DISPLAY_NEW && $activity->display != TraxVideoConfig::TRAXLIB_DISPLAY_OPEN) {
+    traxvideo_tigger_module_event('course_module_viewed', $activity, $course, $cm, $context);
+}
 
 // Page setup.
-$url = new moodle_url('/mod/traxvideo/view.php', array('id'=>$id));
+$url = new moodle_url('/mod/traxvideo/view.php', array('id' => $id));
 $PAGE->set_url($url);
 
 // External file.
 $PAGE->requires->css(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/video-js-7.17.0/video-js.css'));
 $PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/video-js-7.17.0/video.js'), true);
 $PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/videojs-youtube-2.6.1/Youtube.min.js'), true);
-//$PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/lib/utf8-text-encoding.js'), true);
-//$PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/lib/cryptojs_v3.1.2.js'), true);
-//$PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/src/verbs.js'), true);
-//$PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/src/activitytypes.js'), true);
-//$PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/src/xapi-util.js'), true);
-//$PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/src/xapistatement.js'), true);
-//$PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/src/xapi-launch.js'), true);
-//$PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/src/xapiwrapper.js'), true);
 $PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/dist/xapiwrapper.min.js'), true);
 $PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/dist/xapiwrapper.min.js.map'), true);
 $PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/lib/cryptojs_v3.1.2.js'), true);
@@ -82,7 +75,7 @@ $front = (object)[
     'endpoint' => $CFG->wwwroot . '/admin/tool/log/store/trax/proxy/',
     'username' => '',
     'password' => '',
-    'actor' => '{"mbox": "mailto:'.$activity->id.'@traxvideo.mod"}',
+    'actor' => '{"mbox": "mailto:' . $activity->id . '@traxvideo.mod"}',
     'activityid' => $activityid,
     'activityname' => $title,
     'video' => [
@@ -93,56 +86,56 @@ $front = (object)[
 ?>
 
 <?php
-function startsWith( $haystack, $needle ) {
-     $length = strlen( $needle );
-     return substr( $haystack, 0, $length ) === $needle;
+function startsWith($haystack, $needle)
+{
+    $length = strlen($needle);
+    return substr($haystack, 0, $length) === $needle;
 }
 ?>
 
-<div class="wrapper">
-    <div class="videocontent">
-        <?php
-        foreach ($front->video as $type => $source) {
-            if (startsWith($source, 'https://youtu.be') || startsWith($source, 'https://youtube.com')) {
-                echo '<video id="xapi-videojs" class="video-js vjs-default-skin vjs-big-play-centered" controls preload="auto" poster="' . $front->poster . '" data-setup=\'{ "fluid": true, "techOrder": ["youtube", "html5"], "sources": [{ "type": "video/youtube", "src": "' . $source . '"}] }\'></video>';
-            } else if (startsWith($source, 'https://mediacenter.univ-reims.fr')) {
-                $pattern = '~https://mediacenter\.univ-reims\.fr/videos/\?video=(\w*).*~';
-                $videoUri = '';
-                $posterUri = '';
-                if (preg_match($pattern, $source, $matches)) {
-                    $videoUri = 'https://mediacenter.univ-reims.fr/videos/'.$matches[1].'/multimedia/'.$matches[1].'.mp4';
-                }
-                if ($front->poster === "") {
-                    $posterUri = 'https://mediacenter.univ-reims.fr/videos/'.$matches[1].'/preview.jpg';
-                } else {
-                    $posterUri = $front->poster;
-                }
-                echo '<video id="xapi-videojs" class="video-js vjs-default-skin vjs-big-play-centered" controls preload="auto" poster="' . $posterUri . '" data-setup=\'{"fluid": true}\'><source src="' . $videoUri . '" type="' . $type . '"></video>';
+    <div class="wrapper">
+        <div class="videocontent">
+            <?php
+            $playerurl = "./player.php?id=" . $id . "&url=" . urlencode($activity->sourcemp4) . "&poster=" . urlencode($activity->poster);
+            if ($activity->display == TraxVideoConfig::TRAXLIB_DISPLAY_POPUP) {
+                $options = empty($resource->displayoptions) ? array() : unserialize($resource->displayoptions);
+                $width = empty($options['popupwidth']) ? 620 : $options['popupwidth'];
+                $height = empty($options['popupheight']) ? 450 : $options['popupheight']; ?>
+                <a href="<?php echo $playerurl ?>"
+                   onclick="window.open('<?php echo $playerurl ?>', '', '<?php echo "width=" . $width . ",height=" . $height ?>,toolbar=no,location=no,menubar=no,copyhistory=no,status=no,directories=no,scrollbars=yes,resizable=yes'); return false;"><?php echo $title ?></a>
+                <?php
+            } else if ($activity->display == TraxVideoConfig::TRAXLIB_DISPLAY_OPEN) {
+                ?>
+                <a href="<?php echo $playerurl ?>"><?php echo $title ?></a>
+                <?php
+            } else if ($activity->display == TraxVideoConfig::TRAXLIB_DISPLAY_NEW) {
+                ?>
+                <a href="<?php echo $playerurl ?>" target="_blank"><?php echo $title ?></a>
+                <?php
             } else {
-                echo '<video id="xapi-videojs" class="video-js vjs-default-skin vjs-big-play-centered" controls preload="auto" poster="' . $front->poster . '" data-setup=\'{"fluid": true}\'><source src="' . $source . '" type="' . $type . '"></video>';
+                video_tag($activity->sourcemp4, $activity->poster);
             }
-        }
-        ?>
+            ?>
+        </div>
     </div>
-</div>
 
-<script type="text/javascript">
+    <script type="text/javascript">
 
-    ADL.XAPIWrapper.log.debug = false;
-    if (ADL.XAPIWrapper.lrs.actor === undefined) {
-        var conf = {
-            "endpoint": "<?php echo $front->endpoint ?>",
-            "auth": "Basic " + toBase64('<?php echo $front->username ?>:<?php echo $front->password ?>'),
-            "actor": '<?php echo $front->actor ?>'
-        };
-        ADL.XAPIWrapper.changeConfig(conf);
-    }
-    var activityIri = "<?php echo $front->activityid ?>";
-    var activityTitle = "<?php echo $front->activityname ?>";
-    var activityDesc = '';
-    ADL.XAPIVideoJS("xapi-videojs");
+        ADL.XAPIWrapper.log.debug = false;
+        if (ADL.XAPIWrapper.lrs.actor === undefined) {
+            var conf = {
+                "endpoint": "<?php echo $front->endpoint ?>",
+                "auth": "Basic " + toBase64('<?php echo $front->username ?>:<?php echo $front->password ?>'),
+                "actor": '<?php echo $front->actor ?>'
+            };
+            ADL.XAPIWrapper.changeConfig(conf);
+        }
+        var activityIri = "<?php echo $front->activityid ?>";
+        var activityTitle = "<?php echo $front->activityname ?>";
+        var activityDesc = '';
+        ADL.XAPIVideoJS("xapi-videojs");
 
-</script>
+    </script>
 
 <?php
 // Content close.

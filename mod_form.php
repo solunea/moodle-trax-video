@@ -24,11 +24,14 @@
 
 defined('MOODLE_INTERNAL') || die;
 
-require_once($CFG->dirroot.'/course/moodleform_mod.php');
+require_once($CFG->dirroot . '/course/moodleform_mod.php');
+require_once('./lib.php');
 
-class mod_traxvideo_mod_form extends moodleform_mod {
+class mod_traxvideo_mod_form extends moodleform_mod
+{
 
-    function definition() {
+    function definition()
+    {
         $config = get_config('traxvideo');
         $mform = $this->_form;
 
@@ -59,6 +62,38 @@ class mod_traxvideo_mod_form extends moodleform_mod {
         $mform->addHelpButton('poster', 'poster', 'traxvideo');
         $mform->setDefault('poster', 'http://vjs.zencdn.net/v/oceans.png');
 
+        //-------------------------------------------------------
+        $mform->addElement('header', 'optionssection', get_string('appearance'));
+
+        if ($this->current->instance) {
+            $options = $this->get_displayoptions(explode(',', $config->displayoptions), $this->current->display);
+        } else {
+            $options = $this->get_displayoptions(explode(',', $config->displayoptions));
+        }
+
+        $mform->addElement('select', 'display', get_string('displayselect', 'traxvideo'), $options);
+        $mform->setDefault('display', $config->display);
+        $mform->addHelpButton('display', 'displayselect', 'traxvideo');
+
+        if (array_key_exists(TRAXLIB_DISPLAY_POPUP, $options)) {
+            $mform->addElement('text', 'popupwidth', get_string('popupwidth', 'traxvideo'), array('size' => 3));
+            if (count($options) > 1) {
+                $mform->hideIf('popupwidth', 'display', 'noteq', TRAXLIB_DISPLAY_POPUP);
+            }
+            $mform->setType('popupwidth', PARAM_INT);
+            $mform->setDefault('popupwidth', $config->popupwidth);
+            $mform->setAdvanced('popupwidth', true);
+
+            $mform->addElement('text', 'popupheight', get_string('popupheight', 'traxvideo'), array('size' => 3));
+            if (count($options) > 1) {
+                $mform->hideIf('popupheight', 'display', 'noteq', TRAXLIB_DISPLAY_POPUP);
+            }
+            $mform->setType('popupheight', PARAM_INT);
+            $mform->setDefault('popupheight', $config->popupheight);
+            $mform->setAdvanced('popupheight', true);
+        }
+
+        //-------------------------------------------------------
         // Common settings.
         $this->standard_coursemodule_elements();
 
@@ -66,5 +101,52 @@ class mod_traxvideo_mod_form extends moodleform_mod {
         $this->add_action_buttons();
     }
 
-}
+    function data_preprocessing(&$default_values)
+    {
+        if (!empty($default_values['displayoptions'])) {
+            $displayoptions = unserialize($default_values['displayoptions']);
+            if (!empty($displayoptions['popupwidth'])) {
+                $default_values['popupwidth'] = $displayoptions['popupwidth'];
+            }
+            if (!empty($displayoptions['popupheight'])) {
+                $default_values['popupheight'] = $displayoptions['popupheight'];
+            }
+        }
+    }
 
+    /**
+     * Returns list of available display options
+     * @param array $enabled list of options enabled in module configuration
+     * @param int $current current display options for existing instances
+     * @return array of key=>name pairs
+     */
+    function get_displayoptions(array $enabled, $current = null)
+    {
+        if (is_number($current)) {
+            $enabled[] = $current;
+        }
+
+        $options = array(TRAXLIB_DISPLAY_AUTO => get_string('resourcedisplayauto'),
+            TRAXLIB_DISPLAY_EMBED => get_string('resourcedisplayembed'),
+            TRAXLIB_DISPLAY_FRAME => get_string('resourcedisplayframe'),
+            TRAXLIB_DISPLAY_NEW => get_string('resourcedisplaynew'),
+            TRAXLIB_DISPLAY_DOWNLOAD => get_string('resourcedisplaydownload'),
+            TRAXLIB_DISPLAY_OPEN => get_string('resourcedisplayopen'),
+            TRAXLIB_DISPLAY_POPUP => get_string('resourcedisplaypopup'));
+
+        $result = array();
+
+        foreach ($options as $key => $value) {
+            if (in_array($key, $enabled)) {
+                $result[$key] = $value;
+            }
+        }
+
+        if (empty($result)) {
+            // there should be always something in case admin misconfigures module
+            $result[TRAXLIB_DISPLAY_OPEN] = $options[TRAXLIB_DISPLAY_OPEN];
+        }
+
+        return $result;
+    }
+}
