@@ -28,15 +28,18 @@ traxvideo_tigger_module_event('course_module_viewed', $activity, $course, $cm, $
 $pageurl = new moodle_url('/mod/traxvideo/player.php', array('url' => $videourl));
 $PAGE->set_url($pageurl);
 
-// External file.
-$PAGE->requires->css(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/video-js-7.17.0/video-js.css'));
-$PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/video-js-7.17.0/video.js'), true);
-$PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/videojs-youtube-2.6.1/Youtube.min.js'), true);
-$PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/dist/xapiwrapper.min.js'), true);
-$PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/dist/xapiwrapper.min.js.map'), true);
-$PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/lib/cryptojs_v3.1.2.js'), true);
-$PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/lib/utf8-text-encoding.js'), true);
-$PAGE->requires->js(new moodle_url($CFG->wwwroot . '/mod/traxvideo/players/xapi-videojs/xapi-videojs.js'), true);
+?>
+<head>
+<link rel="stylesheet" type="text/css" href="/mod/traxvideo/players/xapi-videojs/video-js-7.17.0/video-js.css">
+<script type="text/javascript" charset="utf-8" src="/mod/traxvideo/players/xapi-videojs/video-js-7.17.0/video.js"></script>
+<script type="text/javascript" charset="utf-8" src="/mod/traxvideo/players/xapi-videojs/videojs-youtube-2.6.1/Youtube.min.js"></script>
+<script type="text/javascript" charset="utf-8" src="/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/dist/xapiwrapper.min.js"></script>
+<script type="text/javascript" charset="utf-8" src="/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/dist/xapiwrapper.min.js.map"></script>
+<script type="text/javascript" charset="utf-8" src="/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/lib/cryptojs_v3.1.2.js"></script>
+<script type="text/javascript" charset="utf-8" src="/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/lib/utf8-text-encoding.js"></script>
+<script type="text/javascript" charset="utf-8" src="/mod/traxvideo/players/xapi-videojs/xapi-videojs.js"></script>
+</head>
+<?php
 
 // Content header.
 $title = format_string($activity->name);
