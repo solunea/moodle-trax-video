@@ -173,7 +173,7 @@ function traxvideo_reset_userdata($data) {
  */
 function trax_set_display_options($data) {
     $displayoptions = array();
-    if ($data->display == TRAXLIB_DISPLAY_POPUP) {
+    if ($data->display == TraxVideoConfig::TRAXLIB_DISPLAY_POPUP) {
         $displayoptions['popupwidth']  = $data->popupwidth;
         $displayoptions['popupheight'] = $data->popupheight;
     }

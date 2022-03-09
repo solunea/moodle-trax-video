@@ -26,6 +26,7 @@ defined('MOODLE_INTERNAL') || die;
 
 require_once($CFG->dirroot . '/course/moodleform_mod.php');
 require_once('./lib.php');
+require_once($CFG->dirroot . '/mod/traxvideo/locallib.php');
 
 class mod_traxvideo_mod_form extends moodleform_mod
 {
@@ -75,10 +76,10 @@ class mod_traxvideo_mod_form extends moodleform_mod
         $mform->setDefault('display', $config->display);
         $mform->addHelpButton('display', 'displayselect', 'traxvideo');
 
-        if (array_key_exists(TRAXLIB_DISPLAY_POPUP, $options)) {
+        if (array_key_exists(TraxVideoConfig::TRAXLIB_DISPLAY_POPUP, $options)) {
             $mform->addElement('text', 'popupwidth', get_string('popupwidth', 'traxvideo'), array('size' => 3));
             if (count($options) > 1) {
-                $mform->hideIf('popupwidth', 'display', 'noteq', TRAXLIB_DISPLAY_POPUP);
+                $mform->hideIf('popupwidth', 'display', 'noteq', TraxVideoConfig::TRAXLIB_DISPLAY_POPUP);
             }
             $mform->setType('popupwidth', PARAM_INT);
             $mform->setDefault('popupwidth', $config->popupwidth);
@@ -86,7 +87,7 @@ class mod_traxvideo_mod_form extends moodleform_mod
 
             $mform->addElement('text', 'popupheight', get_string('popupheight', 'traxvideo'), array('size' => 3));
             if (count($options) > 1) {
-                $mform->hideIf('popupheight', 'display', 'noteq', TRAXLIB_DISPLAY_POPUP);
+                $mform->hideIf('popupheight', 'display', 'noteq', TraxVideoConfig::TRAXLIB_DISPLAY_POPUP);
             }
             $mform->setType('popupheight', PARAM_INT);
             $mform->setDefault('popupheight', $config->popupheight);
@@ -126,13 +127,13 @@ class mod_traxvideo_mod_form extends moodleform_mod
             $enabled[] = $current;
         }
 
-        $options = array(TRAXLIB_DISPLAY_AUTO => get_string('resourcedisplayauto'),
-            TRAXLIB_DISPLAY_EMBED => get_string('resourcedisplayembed'),
-            TRAXLIB_DISPLAY_FRAME => get_string('resourcedisplayframe'),
-            TRAXLIB_DISPLAY_NEW => get_string('resourcedisplaynew'),
-            TRAXLIB_DISPLAY_DOWNLOAD => get_string('resourcedisplaydownload'),
-            TRAXLIB_DISPLAY_OPEN => get_string('resourcedisplayopen'),
-            TRAXLIB_DISPLAY_POPUP => get_string('resourcedisplaypopup'));
+        $options = array(TraxVideoConfig::TRAXLIB_DISPLAY_AUTO => get_string('resourcedisplayauto'),
+            TraxVideoConfig::TRAXLIB_DISPLAY_EMBED => get_string('resourcedisplayembed'),
+            TraxVideoConfig::TRAXLIB_DISPLAY_FRAME => get_string('resourcedisplayframe'),
+            TraxVideoConfig::TRAXLIB_DISPLAY_NEW => get_string('resourcedisplaynew'),
+            TraxVideoConfig::TRAXLIB_DISPLAY_DOWNLOAD => get_string('resourcedisplaydownload'),
+            TraxVideoConfig::TRAXLIB_DISPLAY_OPEN => get_string('resourcedisplayopen'),
+            TraxVideoConfig::TRAXLIB_DISPLAY_POPUP => get_string('resourcedisplaypopup'));
 
         $result = array();
 
@@ -144,7 +145,7 @@ class mod_traxvideo_mod_form extends moodleform_mod
 
         if (empty($result)) {
             // there should be always something in case admin misconfigures module
-            $result[TRAXLIB_DISPLAY_OPEN] = $options[TRAXLIB_DISPLAY_OPEN];
+            $result[TraxVideoConfig::TRAXLIB_DISPLAY_OPEN] = $options[TraxVideoConfig::TRAXLIB_DISPLAY_OPEN];
         }
 
         return $result;
