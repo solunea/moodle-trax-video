@@ -101,16 +101,16 @@ function startsWith($haystack, $needle)
                 $options = empty($resource->displayoptions) ? array() : unserialize($resource->displayoptions);
                 $width = empty($options['popupwidth']) ? 620 : $options['popupwidth'];
                 $height = empty($options['popupheight']) ? 450 : $options['popupheight']; ?>
-                <a href="<?php echo $playerurl ?>"
-                   onclick="window.open('<?php echo $playerurl ?>', '', '<?php echo "width=" . $width . ",height=" . $height ?>,toolbar=no,location=no,menubar=no,copyhistory=no,status=no,directories=no,scrollbars=yes,resizable=yes'); return false;"><?php echo $title ?></a>
+                <div><?= get_string('click', 'traxvideo') ?> <a href="<?php echo $playerurl ?>"
+                              onclick="window.open('<?= $playerurl ?>', '', '<?= "width=" . $width . ",height=" . $height ?>,toolbar=no,location=no,menubar=no,copyhistory=no,status=no,directories=no,scrollbars=yes,resizable=yes'); return false;"><?= $title ?></a> <?= get_string('videolink', 'traxvideo') ?></div>
                 <?php
             } else if ($activity->display == TraxVideoConfig::TRAXLIB_DISPLAY_OPEN) {
                 ?>
-                <a href="<?php echo $playerurl ?>"><?php echo $title ?></a>
+                <div><?= get_string('click', 'traxvideo') ?> <a href="<?= $playerurl ?>"><?= $title ?></a> <?= get_string('videolink', 'traxvideo') ?></div>
                 <?php
             } else if ($activity->display == TraxVideoConfig::TRAXLIB_DISPLAY_NEW) {
                 ?>
-                <a href="<?php echo $playerurl ?>" target="_blank"><?php echo $title ?></a>
+                <div><?= get_string('click', 'traxvideo') ?> <a href="<?= $playerurl ?>" target="_blank"><?= $title ?></a> <?= get_string('videolink', 'traxvideo') ?></div>
                 <?php
             } else {
                 video_tag($activity->sourcemp4, $activity->poster);

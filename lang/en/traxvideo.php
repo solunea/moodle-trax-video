@@ -47,9 +47,9 @@ $string['privacy:metadata'] = 'This plugin does not store any personal data.
     Refer to Trax Logs data privacy policy.';
 
 $string['configdisplayoptions'] = 'Select all options that should be available, existing settings are not modified. Hold CTRL key to select multiple fields.';
-$string['configframesize'] = 'When a web page or an uploaded file is displayed within a frame, this value is the height (in pixels) of the top frame (which contains the navigation).';
-$string['configparametersettings'] = 'This sets the default value for the Parameter settings pane in the form when adding some new resources. After the first time, this becomes an individual user preference.';
-$string['configpopup'] = 'When adding a new resource which is able to be shown in a popup window, should this option be enabled by default?';
+$string['configframesize'] = 'When a web page or a video is displayed within a frame, this value is the height (in pixels) of the top frame (which contains the navigation).';
+$string['configparametersettings'] = 'This sets the default value for the Parameter settings pane in the form when adding some new videos. After the first time, this becomes an individual user preference.';
+$string['configpopup'] = 'When adding a new video which is able to be shown in a popup window, should this option be enabled by default?';
 $string['configpopupdirectories'] = 'Should popup windows show directory links by default?';
 $string['configpopupheight'] = 'What height should be the default height for new popup windows?';
 $string['configpopuplocation'] = 'Should popup windows show the location bar by default?';
@@ -65,8 +65,9 @@ $string['displayselect'] = 'Display';
 $string['displayselect_help'] = 'This setting, together with the file type and whether the browser allows embedding, determines how the video is displayed. Options may include:
 
 * Automatic - The best display option for the video is selected automatically
-* Embed - The video is displayed within the page below the navigation bar together with the file description and any blocks
-* In pop-up - The video is displayed in a new browser window without menus or an address bar
+* Embed - The video is displayed within the page below the navigation bar
+* In pop-up - The video is displayed in a new browser window, with specific dimensions, without menus or an address bar
+* Open - The video is displayed in the current page, without menus or an address bar
 * New window - The video is displayed in a new browser window with menus and an address bar';
 $string['displayselect_link'] = 'mod/file/mod';
 $string['displayselectexplain'] = 'Choose display type.';
@@ -74,4 +75,7 @@ $string['popupheight'] = 'Pop-up height (in pixels)';
 $string['popupheightexplain'] = 'Specifies default height of popup windows.';
 $string['popupwidth'] = 'Pop-up width (in pixels)';
 $string['popupwidthexplain'] = 'Specifies default width of popup windows.';
+
+$string['click'] = 'Click ';
+$string['videolink'] = 'link to view the video.';
 
