@@ -5,7 +5,6 @@ require_once($CFG->dirroot . '/mod/traxvideo/locallib.php');
 
 use logstore_trax\src\controller as trax_controller;
 
-
 // Params.
 $id = required_param('id', PARAM_INT);
 $videourl = required_param('url', PARAM_URL);
@@ -30,14 +29,22 @@ $PAGE->set_url($pageurl);
 
 ?>
 <head>
-<link rel="stylesheet" type="text/css" href="/mod/traxvideo/players/xapi-videojs/video-js-7.17.0/video-js.css">
-<script type="text/javascript" charset="utf-8" src="/mod/traxvideo/players/xapi-videojs/video-js-7.17.0/video.js"></script>
-<script type="text/javascript" charset="utf-8" src="/mod/traxvideo/players/xapi-videojs/videojs-youtube-2.6.1/Youtube.min.js"></script>
-<script type="text/javascript" charset="utf-8" src="/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/dist/xapiwrapper.min.js"></script>
-<script type="text/javascript" charset="utf-8" src="/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/dist/xapiwrapper.min.js.map"></script>
-<script type="text/javascript" charset="utf-8" src="/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/lib/cryptojs_v3.1.2.js"></script>
-<script type="text/javascript" charset="utf-8" src="/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/lib/utf8-text-encoding.js"></script>
-<script type="text/javascript" charset="utf-8" src="/mod/traxvideo/players/xapi-videojs/xapi-videojs.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3" crossorigin="anonymous">
+    <link rel="stylesheet" type="text/css" href="/mod/traxvideo/players/xapi-videojs/video-js-7.17.0/video-js.css">
+    <script type="text/javascript" charset="utf-8"
+            src="/mod/traxvideo/players/xapi-videojs/video-js-7.17.0/video.js"></script>
+    <script type="text/javascript" charset="utf-8"
+            src="/mod/traxvideo/players/xapi-videojs/videojs-youtube-2.6.1/Youtube.min.js"></script>
+    <script type="text/javascript" charset="utf-8"
+            src="/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/dist/xapiwrapper.min.js"></script>
+    <script type="text/javascript" charset="utf-8"
+            src="/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/dist/xapiwrapper.min.js.map"></script>
+    <script type="text/javascript" charset="utf-8"
+            src="/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/lib/cryptojs_v3.1.2.js"></script>
+    <script type="text/javascript" charset="utf-8"
+            src="/mod/traxvideo/players/xapi-videojs/xAPIWrapper-1.11.0/lib/utf8-text-encoding.js"></script>
+    <script type="text/javascript" charset="utf-8" src="/mod/traxvideo/players/xapi-videojs/xapi-videojs.js"></script>
 </head>
 <?php
 
@@ -72,16 +79,23 @@ function startsWith($haystack, $needle)
 }
 
 ?>
-
 <div class="wrapper">
     <div class="videocontent">
         <?php
-        video_tag($videourl,$poster);
+        video_tag($videourl, $poster);
         ?>
+    </div>
+    <div class="videoMessage" id="videoMessage"></div>
+</div>
+<div id="terminate_video_form" class="form-group clearfix" style="visibility: hidden">
+    <div data-fieldtype="submit" class="d-flex justify-content-center p-3">
+        <input type="submit" class="btn btn-primary " name="all" id="id_all" onclick="terminateVideo();"
+               value="<?php echo get_string('terminateVideo', 'traxvideo'); ?>">
     </div>
 </div>
 
 <script type="text/javascript">
+    const videoIsTerminated = "<?php echo get_string('videoIsTerminated', 'traxvideo'); ?>";
 
     ADL.XAPIWrapper.log.debug = false;
     if (ADL.XAPIWrapper.lrs.actor === undefined) {

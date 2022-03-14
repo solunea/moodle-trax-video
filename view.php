@@ -23,6 +23,8 @@
  */
 
 require_once('../../config.php');
+require_once($CFG->dirroot . '/course/moodleform_mod.php');
+require_once('./lib.php');
 require_once($CFG->dirroot . '/mod/traxvideo/locallib.php');
 
 use logstore_trax\src\controller as trax_controller;
@@ -91,7 +93,14 @@ function startsWith($haystack, $needle)
     $length = strlen($needle);
     return substr($haystack, 0, $length) === $needle;
 }
+
 ?>
+    <div id="terminate_video_form" class="form-group clearfix fitem femptylabel" style="visibility: hidden">
+        <div class="float-right form-inline align-items-start felement" data-fieldtype="submit">
+            <input type="submit" class="btn btn-primary " name="all" id="id_all" onclick="terminateVideo();"
+                   value="<?php echo get_string('terminateVideo', 'traxvideo'); ?>">
+        </div>
+    </div>
 
     <div class="wrapper">
         <div class="videocontent">
@@ -102,24 +111,30 @@ function startsWith($haystack, $needle)
                 $width = empty($options['popupwidth']) ? 620 : $options['popupwidth'];
                 $height = empty($options['popupheight']) ? 450 : $options['popupheight']; ?>
                 <div><?= get_string('click', 'traxvideo') ?> <a href="<?php echo $playerurl ?>"
-                              onclick="window.open('<?= $playerurl ?>', '', '<?= "width=" . $width . ",height=" . $height ?>,toolbar=no,location=no,menubar=no,copyhistory=no,status=no,directories=no,scrollbars=yes,resizable=yes'); return false;"><?= $title ?></a> <?= get_string('videolink', 'traxvideo') ?></div>
+                                                                onclick="window.open('<?= $playerurl ?>', '', '<?= "width=" . $width . ",height=" . $height ?>,toolbar=no,location=no,menubar=no,copyhistory=no,status=no,directories=no,scrollbars=yes,resizable=yes'); return false;"><?= $title ?></a> <?= get_string('videolink', 'traxvideo') ?>
+                </div>
                 <?php
             } else if ($activity->display == TraxVideoConfig::TRAXLIB_DISPLAY_OPEN) {
                 ?>
-                <div><?= get_string('click', 'traxvideo') ?> <a href="<?= $playerurl ?>"><?= $title ?></a> <?= get_string('videolink', 'traxvideo') ?></div>
+                <div><?= get_string('click', 'traxvideo') ?> <a
+                            href="<?= $playerurl ?>"><?= $title ?></a> <?= get_string('videolink', 'traxvideo') ?></div>
                 <?php
             } else if ($activity->display == TraxVideoConfig::TRAXLIB_DISPLAY_NEW) {
                 ?>
-                <div><?= get_string('click', 'traxvideo') ?> <a href="<?= $playerurl ?>" target="_blank"><?= $title ?></a> <?= get_string('videolink', 'traxvideo') ?></div>
+                <div><?= get_string('click', 'traxvideo') ?> <a href="<?= $playerurl ?>"
+                                                                target="_blank"><?= $title ?></a> <?= get_string('videolink', 'traxvideo') ?>
+                </div>
                 <?php
             } else {
                 video_tag($activity->sourcemp4, $activity->poster);
             }
             ?>
         </div>
+        <div class="videoMessage" id="videoMessage"></div>
     </div>
 
     <script type="text/javascript">
+        const videoIsTerminated = "<?php echo get_string('videoIsTerminated', 'traxvideo'); ?>";
 
         ADL.XAPIWrapper.log.debug = false;
         if (ADL.XAPIWrapper.lrs.actor === undefined) {

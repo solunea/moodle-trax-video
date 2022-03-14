@@ -71,3 +71,6 @@ $string['popupwidthexplain'] = 'La largeur de la fenêtre pop-up, en pixels.';
 $string['click'] = 'Cliquez sur le lien';
 $string['videolink'] = 'pour afficher la vidéo.';
 
+$string['videoIsTerminated'] = 'La vidéo est terminée. Vous pouvez retourner dans le cours.';
+$string['terminateVideo'] = 'Terminer la vidéo.';
+

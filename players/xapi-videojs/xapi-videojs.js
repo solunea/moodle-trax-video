@@ -1,239 +1,372 @@
-// xAPI Statements Based on VideoJS Player Interactions
+let videoEventListener;
 
 (function (ADL) {
+    ADL.XAPIVideoJS = function (target) {
+        let myPlayer = videojs(target);
 
-    var XAPIVideoJS = function (target, src, options) {
-        var actor = JSON.parse(ADL.XAPIWrapper.lrs.actor);
+        let objectID = activityIri;
+        let sessionID = ADL.ruuid();
+        let sendCCSubtitle = false;
+        let actor = JSON.parse(ADL.XAPIWrapper.lrs.actor);
 
-        // Global Variables & common functions
-        var myPlayer = videojs(target);
-        var objectID = activityIri;
-        var sessionID = ADL.ruuid();
-        var sendCCSubtitle = false;
-        var played_segments = "";
-        var played_segments_segment_start = null;
-        var played_segments_segment_end = null;
-        var started = false;
-        var ccEnabled = false;
-        var ccLanguage = "";
+        videoEventListener = new VideoEventListener(myPlayer, objectID, sessionID, sendCCSubtitle, actor);
+    };
+}(window.ADL = window.ADL || {}));
 
-        // Get all text tracks for the current player to determine if there are any CC-Subtitles
-        var tracks = myPlayer.textTracks();
+const VIDEO_STATE_NOTSTARTED = 0;
+const VIDEO_STATE_PLAYING = 1;
+const VIDEO_STATE_INPAUSE = 2;
+const VIDEO_STATE_ENDED = 3;
 
-        // common math functions
-        function formatFloat(number) {
-            if (number == null)
-                return null;
+class Video {
+    state;
+    duration; // Duration cannot be known before the video loading.
+    completionState;
+    completionMarginInSeconds = 5; // We add 5 seconds when comparing total of viewed segments to duration, because of some glitches when pausing and playing lightly shifts the position.
 
-            return +(parseFloat(number).toFixed(3));
+    constructor() {
+        this.state = VIDEO_STATE_NOTSTARTED;
+        this.completionState = new CompletionState();
+    }
+
+    isCompleted() {
+        // TODO : problem : this function compares the total time of viewed segments to the total duration, but should check if the viewed segments cover the whole video!
+        if (isNaN(this.duration)) {
+            console.log("Duration is NAN");
+            return false;
+        } else {
+            console.log("Viewed=" + this.completionState.getViewedDuration() + " Duration=" + this.duration);
+            return this.completionState.getViewedDuration() + this.completionMarginInSeconds > this.duration;
+        }
+    }
+
+    /**
+     *
+     * @returns {number} the percentage of the video viewed, compared to the total duration, percentage 0->1.
+     */
+    getCompletionPercentage() {
+        let comparedDuration = this.duration;
+        if (comparedDuration > this.completionMarginInSeconds) {
+            comparedDuration = comparedDuration - this.completionMarginInSeconds;
+        }
+        let progress = 1 * (this.completionState.getViewedDuration() / comparedDuration).toFixed(2);
+        if (progress > 1) {
+            progress = 1;
+        }
+        return progress;
+    }
+}
+
+class CompletionState {
+    // start1[.]end1[,]start2[.]end2
+    viewedSegments = "";
+    position = 0;
+
+    /**
+     *  Sum of duration of viewed segments with total video duration.
+     * @returns {float}
+     */
+    getViewedDuration() {
+        // TODO : problem : we do not check if segments are sumed up even if the're overlaping on other segments.
+        // Possible values :
+        // startX[.]  -> must add current position as end
+        // startX[.]endX
+
+        if (this.viewedSegments === "") {
+            return false;
         }
 
-        function add_registration_if_exists(statement) {
-            if (typeof ADL.XAPIWrapper.lrs.registration == "string" && ADL.XAPIWrapper.lrs.registration.length == 36) {
-                // var registration = ADL.XAPIWrapper.lrs.registration;
-                if (typeof statement["context"] == undefined)
-                    statement["context"] = new Object();
+        let currentViewedSegments = this.viewedSegments;
+        if (currentViewedSegments.endsWith("[.]")) {
+            currentViewedSegments += this.position;
+        }
 
-                statement["context"]["registration"] = ADL.XAPIWrapper.lrs.registration;
+        let segmentsDuration = 0.0;
+        let segment = [];
+        currentViewedSegments.split("[,]").forEach(function (v, i) {
+            segment[i] = v.split("[.]");
+            if (parseFloat(segment[i][1]) > parseFloat(segment[i][0])) {
+                if (parseFloat(segment[i][1]) > parseFloat(segment[i][0])) {
+                    segmentsDuration += (parseFloat(segment[i][1]) - parseFloat(segment[i][0]));
+                }
             }
+        });
+        return segmentsDuration;
+    }
 
-            return statement;
+    startSegment(position) {
+        if (this.viewedSegments !== "") {
+            this.viewedSegments += "[,]";
         }
+        this.viewedSegments += position + "[.]";
+    }
 
-        // other functions
-        function start_played_segment(start_time) {
-            played_segments_segment_start = start_time;
-        }
+    endSegment(position) {
+        this.viewedSegments += +position;
+    }
+}
 
-        function end_played_segment(end_time) {
-            var arr;
-            arr = (played_segments == "") ? [] : played_segments.split("[,]");
-            arr.push(played_segments_segment_start + "[.]" + end_time);
-            played_segments = arr.join("[,]");
-            played_segments_segment_end = end_time;
-            played_segments_segment_start = null;
-        }
+/**
+ * Listen for video player events : change the Video object (video state and completion status), and calls VideoProfileListener.onVideoUpdate()
+ */
+class VideoEventListener {
+    /**
+     * The videojs object
+     */
+    videoPlayer;
+    /**
+     * The Video object
+     */
+    video;
+    videoProfileListener;
 
-        function fixed_play_time(time) {
-            if (played_segments_segment_end == null || Math.abs(played_segments_segment_end - time) >= 1)
-                return time;
-            else
-                return played_segments_segment_end;
-        }
-
-        function get_progress() {
-            var arr, arr2;
-
-            //get played segments array
-            arr = (played_segments == "") ? [] : played_segments.split("[,]");
-            if (played_segments_segment_start != null) {
-                arr.push(played_segments_segment_start + "[.]" + formatFloat(myPlayer.currentTime()));
+    constructor(videoPlayer, objectID, sessionID, sendCCSubtitle, actor) {
+        let self = this;
+        this.videoPlayer = videoPlayer;
+        this.video = new Video();
+        this.video.textTracks = videoPlayer.textTracks();
+        this.videoProfileListener = new VideoProfileListener(this.video, videoPlayer, objectID, sessionID, sendCCSubtitle, actor);
+        videoPlayer.on("timeupdate", function () {
+            console.log("==timeupdate==  current=" + formatFloat(self.videoPlayer.currentTime()) + "  position=" + self.video.completionState.position);
+            // If the timeupdate is more than 1 second, it's not a normal play increment, it's a user interaction to move elsewhere
+            let currentPosition = formatFloat(self.videoPlayer.currentTime());
+            if (Math.abs(currentPosition - self.video.completionState.position) > 1) {
+                self.video.completionState.endSegment(self.video.completionState.position);
+                self.video.completionState.startSegment(currentPosition);
+            } else {
+                self.video.completionState.position = currentPosition;
             }
-
-            arr2 = [];
-            arr.forEach(function (v, i) {
-                arr2[i] = v.split("[.]");
-                arr2[i][0] *= 1;
-                arr2[i][1] *= 1;
-            });
-
-            //sort the array
-            arr2.sort(function (a, b) {
-                return a[0] - b[0];
-            });
-
-            //normalize the segments
-            arr2.forEach(function (v, i) {
-                if (i > 0) {
-                    if (arr2[i][0] < arr2[i - 1][1]) { //overlapping segments: this segment's starting point is less than last segment's end point.
-                        //ADL.XAPIWrapper.log(arr2[i][0] + " < " + arr2[i-1][1] + " : " + arr2[i][0] +" = " +arr2[i-1][1] );
-                        arr2[i][0] = arr2[i - 1][1];
-                        if (arr2[i][0] > arr2[i][1])
-                            arr2[i][1] = arr2[i][0];
+            // We do not test completion, because it may be sent with incomplet segments and position: completed will be tested on pause (=by user or by end)
+        });
+        videoPlayer.on("seeked", function () {
+            console.log("==seeked==  current=" + formatFloat(self.videoPlayer.currentTime()) + "  position=" + self.video.completionState.position);
+            switch (self.video.state) {
+                case VIDEO_STATE_NOTSTARTED:
+                    console.log("VideoEventListener : no action on 'Seeked', as it was not played yet.");
+                    break;
+                case VIDEO_STATE_PLAYING:
+                    self.video.completionState.endSegment(self.video.completionState.position);
+                    self.video.completionState.startSegment(formatFloat(self.videoPlayer.currentTime()));
+                    break;
+                case VIDEO_STATE_INPAUSE:
+                    self.video.completionState.endSegment(self.video.completionState.position);
+                    self.video.completionState.startSegment(formatFloat(self.videoPlayer.currentTime()));
+                    break;
+                case VIDEO_STATE_ENDED:
+                    self.video.completionState.endSegment(self.video.completionState.position);
+                    self.video.completionState.startSegment(formatFloat(self.videoPlayer.currentTime()));
+                    self.video.completionState.position = formatFloat(self.videoPlayer.currentTime());
+                    break;
+                default:
+                    console.log("VideoPlayer 'Seeked' event not treated, because current video object state is " + self.video.completionState);
+            }
+        });
+        videoPlayer.on("seeking", function () {
+            console.log("==seeking==  current=" + formatFloat(self.videoPlayer.currentTime()) + "  position=" + self.video.completionState.position);
+            switch (self.video.state) {
+                case VIDEO_STATE_NOTSTARTED:
+                    console.log("VideoEventListener : no action on 'Seeking', as it was not played yet.");
+                    break;
+                case VIDEO_STATE_PLAYING:
+                    self.video.completionState.position = formatFloat(self.videoPlayer.currentTime());
+                    break;
+                case VIDEO_STATE_INPAUSE:
+                    self.video.completionState.position = formatFloat(self.videoPlayer.currentTime());
+                    self.video.completionState.startSegment(formatFloat(self.videoPlayer.currentTime()));
+                    break;
+                case VIDEO_STATE_ENDED:
+                    // Videod ended, but user click on "replay" -> seeking
+                    self.video.state = VIDEO_STATE_PLAYING;
+                    self.video.completionState.startSegment(formatFloat(self.videoPlayer.currentTime()));
+                    self.videoProfileListener.played();
+                    break;
+                default:
+                    console.log("VideoPlayer 'Paused' event not treated, because current video object state is " + self.video.completionState);
+            }
+        });
+        videoPlayer.on("ended", function () {
+            console.log("==ended==");
+            switch (self.video.state) {
+                case VIDEO_STATE_NOTSTARTED:
+                    console.log("VideoEventListener : no action on 'Ended', as it was not played yet.");
+                    break;
+                case VIDEO_STATE_PLAYING:
+                    self.video.state = VIDEO_STATE_ENDED;
+                    self.video.completionState.endSegment(formatFloat(self.videoPlayer.currentTime()));
+                    self.video.completionState.position = formatFloat(self.video.duration);
+                    if (self.video.isCompleted()) {
+                        self.videoProfileListener.completed();
                     }
-                }
-            });
-
-            //calculate progress_length
-            var progress_length = 0;
-            arr2.forEach(function (v, i) {
-                if (v[1] > v[0])
-                    progress_length += v[1] - v[0];
-            });
-
-            // Some video players start the video less than a second after 0, progress is compared to duration - 2 second.
-            var comparedDuration = myPlayer.duration();
-            if (comparedDuration > 2) {
-                comparedDuration = comparedDuration - 2;
+                    break;
+                case VIDEO_STATE_INPAUSE:
+                    self.video.state = VIDEO_STATE_ENDED;
+                    self.video.completionState.position = formatFloat(self.video.duration);
+                    if (self.video.isCompleted()) {
+                        self.videoProfileListener.completed();
+                    }
+                    break;
+                case VIDEO_STATE_ENDED:
+                    console.log("VideoEventListener : no action on 'Ended', as it was ended.");
+                    break;
+                default:
+                    console.log("VideoEventListener : videoPlayer 'Ended' event not treated, because current video object state is " + self.video.completionState);
             }
-            var progress = 1 * (progress_length / comparedDuration).toFixed(2);
-            if (progress > 1) {
-                progress = 1;
+        });
+        videoPlayer.on("play", function () {
+            console.log("==play==");
+            switch (self.video.state) {
+                case VIDEO_STATE_NOTSTARTED:
+                    // First start event, the video wasn't played yet
+                    self.video.state = VIDEO_STATE_PLAYING;
+                    self.video.completionState.startSegment(0);
+                    self.video.completionState.position = 0;
+                    self.video.duration = formatFloat(videoPlayer.duration());
+                    self.videoProfileListener.initialized();
+                    self.videoProfileListener.played();
+                    if (self.video.isCompleted()) {
+                        self.videoProfileListener.completed();
+                    }
+                    break;
+                case VIDEO_STATE_PLAYING:
+                    console.log("VideoEventListener : no action on 'Played', as it was already playing.");
+                    break;
+                case VIDEO_STATE_INPAUSE:
+                    self.video.state = VIDEO_STATE_PLAYING;
+                    self.video.completionState.startSegment(formatFloat(self.videoPlayer.currentTime()));
+                    self.video.completionState.position = formatFloat(self.videoPlayer.currentTime());
+                    self.videoProfileListener.played();
+                    if (self.video.isCompleted()) {
+                        self.videoProfileListener.completed();
+                    }
+                    break;
+                case VIDEO_STATE_ENDED:
+                    self.video.state = VIDEO_STATE_PLAYING;
+                    self.video.completionState.startSegment(formatFloat(self.videoPlayer.currentTime()));
+                    self.video.completionState.position = formatFloat(self.videoPlayer.currentTime());
+                    self.videoProfileListener.played();
+                    if (self.video.isCompleted()) {
+                        self.videoProfileListener.completed();
+                    }
+                    break;
+                default:
+                    console.log("VideoEventListener : videoPlayer 'Played' event not treated, because current video object state is " + self.video.completionState);
             }
-            return progress;
+        });
+        videoPlayer.on("pause", function () {
+            console.log("==pause==");
+            switch (self.video.state) {
+                case VIDEO_STATE_NOTSTARTED:
+                    console.log("VideoEventListener : no action on 'Pause' event, as it was not played yet.");
+                    break;
+                case VIDEO_STATE_PLAYING:
+                    self.video.state = VIDEO_STATE_INPAUSE;
+                    self.video.completionState.endSegment(formatFloat(self.videoPlayer.currentTime()));
+                    self.video.completionState.position = formatFloat(self.videoPlayer.currentTime());
+                    self.videoProfileListener.paused();
+                    if (self.video.isCompleted()) {
+                        self.videoProfileListener.completed();
+                    }
+                    break;
+                case VIDEO_STATE_INPAUSE:
+                    console.log("VideoEventListener : no action, as it was already paused.");
+                    break;
+                case VIDEO_STATE_ENDED:
+                    console.log("VideoEventListener : no action, as it cannot be ended while paused.");
+                    break;
+                default:
+                    console.log("VideoPlayer 'Paused' event not treated, because current video object state is " + self.video.completionState);
+            }
+        });
+        videoPlayer.on("fullscreenchange", function () {
+            console.log("==fullscreenchange==");
+            self.videoProfileListener.fullScreenChange();
+        });
+        videoPlayer.on("volumechange", function () {
+            console.log("==volumechange==");
+            self.videoProfileListener.volumeChange();
+        });
+    }
+}
+
+const STATEMENT_INITIALIZED = "initalized";
+const STATEMENT_PAUSED = "paused";
+const STATEMENT_PLAYED = "played";
+const STATEMENT_COMPLETED = "completed";
+const STATEMENT_TERMINATED = "terminated";
+const STATEMENT_INTERACTED = "interacted";
+
+/**
+ * The Terminate xAPI statement is sent when the user clicks on "Terminate video" button. The event is sent, and the video is disposed (cannot be viewed again).
+ * @type {number}
+ */
+const TERMINATE_STRATEGY_ONACTION = 0;
+/**
+ * The Terminate xAPI statement is sent when the video is completed. The video can continue to be played, but no more statement will be sent.
+ * @type {number}
+ */
+const TERMINATE_STRATEGY_ONCOMPLETED_ANDCONTINUE = 1;
+/**
+ * The Terminate xAPI statement is sent when the video is completed. The videois disposed, and cannot be played without a new initializaion.
+ * @type {number}
+ */
+const TERMINATE_STRATEGY_ONCOMPLETED_ANDSTOP = 2;
+
+class VideoProfileListener {
+    video;
+    videoPlayer;
+    objectID;
+    sessionID;
+    sendCCSubtitle;
+    actor;
+    completionSent = false;
+    terminatedSent = false;
+    lastSentStatement = "";
+    // TODO retrieve this information from activity configuration (parameter in Trax Video activity)
+    terminateStrategy = TERMINATE_STRATEGY_ONACTION;
+
+    constructor(video, videoPlayer, objectID, sessionID, sendCCSubtitle, actor) {
+        this.video = video;
+        this.videoPlayer = videoPlayer;
+        this.objectID = objectID;
+        this.sessionID = sessionID;
+        this.sendCCSubtitle = sendCCSubtitle;
+        this.actor = actor;
+
+        if (this.terminateStrategy === TERMINATE_STRATEGY_ONACTION) {
+            document.getElementById('terminate_video_form').style.visibility = 'visible';
         }
+    }
 
-        function calculate_duration() {
-            var arr, arr2;
-
-            //get played segments array
-            arr = (played_segments == "") ? [] : played_segments.split("[,]");
-            if (played_segments_segment_start != null) {
-                arr.push(played_segments_segment_start + "[.]" + formatFloat(myPlayer.currentTime()));
-            }
-
-            arr2 = [];
-            var duration = 0;
-            arr.forEach(function (v, i) {
-                arr2[i] = v.split("[.]");
-                arr2[i][0] *= 1;
-                arr2[i][1] *= 1;
-
-                if (arr2[i][1] > arr2[i][0])
-                    duration += arr2[i][1] - arr2[i][0];
-            });
-
-            return duration;
-        }
-
-        var terminate_player = false;
-
-        function video_start() {
-            started = true;
-            var myparams = [];
-            myparams['agent'] = JSON.stringify(actor);
-            myparams['activity'] = objectID;
-            myparams['verb'] = 'https://w3id.org/xapi/video/verbs/paused';
-            myparams['limit'] = 1;
-
-            if (typeof ADL.XAPIWrapper.lrs.registration == "string" && ADL.XAPIWrapper.lrs.registration.length == 36) {
-//                ADL.XAPIWrapper.log('yes there is a registration in xAPIWrapper');
-                myparams['registration'] = ADL.XAPIWrapper.lrs.registration;
-            }
-
-            ret = ADL.XAPIWrapper.getStatements(myparams);
-            if (ret != undefined &&
-                ret.statements != undefined &&
-                ret.statements[0] != undefined &&
-                ret.statements[0]['result'] != undefined &&
-                ret.statements[0]['result']['extensions'] != undefined &&
-                ret.statements[0]['result']['extensions']['https://w3id.org/xapi/video/extensions/played-segments'] != undefined
-            ) {
-                ADL.XAPIWrapper.log(played_segments);
-                played_segments = ret.statements[0]['result']['extensions']['https://w3id.org/xapi/video/extensions/played-segments'];
-                ADL.XAPIWrapper.log(played_segments);
-            }
-            if (ret != undefined &&
-                ret.statements != undefined &&
-                ret.statements[0] != undefined &&
-                ret.statements[0]['result'] != undefined &&
-                ret.statements[0]['result']['extensions'] != undefined &&
-                ret.statements[0]['result']['extensions']['https://w3id.org/xapi/video/extensions/time'] != undefined
-            ) {
-                var time = 1 * ret.statements[0]['result']['extensions']['https://w3id.org/xapi/video/extensions/time'];
-                if (time > 0)
-                    myPlayer.currentTime(time);
-                ADL.XAPIWrapper.log(time);
-            }
-            if (ret != undefined &&
-                ret.statements != undefined &&
-                ret.statements[0] != undefined &&
-                ret.statements[0]['result'] != undefined &&
-                ret.statements[0]['result']['extensions'] != undefined &&
-                ret.statements[0]['result']['extensions']['https://w3id.org/xapi/video/extensions/progress'] != undefined
-            ) {
-                var progress = 1 * ret.statements[0]['result']['extensions']['https://w3id.org/xapi/video/extensions/progress'];
-                if (progress == 1) {
-                    completion_sent = true;
-                    ADL.XAPIWrapper.log(progress);
-                }
-            }
-
-
-            send_initialized();
-
-            window.addEventListener("beforeunload", function (e) {
-                terminate_player = true;
-                if (myPlayer.paused())
-                    TerminateMyPlayer();
-                else
-                    myPlayer.pause();
-            });
-        }
-
-        /***************************************************************************************/
-        /***** VIDEO.JS Player xAPI Initialized Statement ********************/
-
-        /*************************************************************************************/
-
-        function send_initialized() {
+    initialized() {
+        if (!this.terminatedSent) {
+            console.log("xAPI event sending : Initialized.");
             // get the current date and time and throw it into a variable for xAPI timestamp
-            var dateTime = new Date();
-            var timeStamp = dateTime.toISOString();
+            let dateTime = new Date();
+            let timeStamp = dateTime.toISOString();
 
             // check to see if the player is in fullscreen mode
-            var fullScreenOrNot = myPlayer.isFullscreen();
+            let fullScreenOrNot = this.videoPlayer.isFullscreen();
 
             // get the current screen size
-            var screenSize = "";
+            let screenSize = "";
             screenSize += screen.width + "x" + screen.height;
 
             // get the playback size of the video
-            var playbackSize = "";
-            playbackSize += myPlayer.currentWidth() + "x" + myPlayer.currentHeight();
+            let playbackSize = "";
+            playbackSize += this.videoPlayer.currentWidth() + "x" + this.videoPlayer.currentHeight();
 
             // get the playback rate of the video
-            var playbackRate = myPlayer.playbackRate();
+            let playbackRate = this.videoPlayer.playbackRate();
 
             // vet the video length
-            var length = myPlayer.duration();
+            let length = this.video.duration;
 
-            ccEnabled = false;
-            ccLanguage = "";
+            let ccEnabled = false;
+            let ccLanguage = "";
 
             //Enable Captions/Subtitles
-            for (var i = 0; i < tracks.length; i++) {
-                var track = tracks[i];
+            for (let i = 0; i < this.video.textTracks.length; i++) {
+                let track = textTracks[i];
 
                 // If it is showing then CC is enabled and determine the language
                 if (track.mode === 'showing') {
@@ -242,19 +375,19 @@
                 }
             }
             // get user agent header string
-            var userAgent = navigator.userAgent.toString();
+            let userAgent = navigator.userAgent.toString();
 
             // get user volume
-            var volume = formatFloat(myPlayer.volume());
+            let volume = formatFloat(this.videoPlayer.volume());
 
             // get quality
             // var quality = (myPlayer.videoHeight() < myPlayer.videoWidth())? myPlayer.videoHeight():videoWidth();/
             // ADL.XAPIWrapper.log("quality is:" + quality);
 
             // prepare the xAPI initialized statement
-            var initializedStmt = {
-                "id": sessionID,
-                "actor": actor,
+            let initializedStmt = {
+                "id": this.sessionID,
+                "actor": this.actor,
                 "verb": {
                     "id": "http://adlnet.gov/expapi/verbs/initialized",
                     "display": {
@@ -262,7 +395,7 @@
                     }
                 },
                 "object": {
-                    "id": objectID,
+                    "id": this.objectID,
                     "definition": {
                         "name": {
                             "en-US": activityTitle
@@ -292,239 +425,42 @@
                         "https://w3id.org/xapi/video/extensions/quality": "960x400",
                         "https://w3id.org/xapi/video/extensions/user-agent": userAgent,
                         "https://w3id.org/xapi/video/extensions/volume": volume,
-                        "https://w3id.org/xapi/video/extensions/session-id": sessionID
+                        "https://w3id.org/xapi/video/extensions/session-id": this.sessionID
 
                     }
                 },
                 "timestamp": timeStamp
             };
 
-            if (ccEnabled == true) {
+            if (ccEnabled === true) {
                 initializedStmt["context"]["extensions"]["https://w3id.org/xapi/video/extensions/cc-subtitle-lang"] = ccLanguage; //Add Language extention only when ccEnabled
             }
 
-            initializedStmt = add_registration_if_exists(initializedStmt);
+            initializedStmt = addRegistration(initializedStmt);
             //send initialized statement to the LRS & show data in console
             ADL.XAPIWrapper.log("initialized statement sent");
-            ADL.XAPIWrapper.sendStatement(initializedStmt, function (resp, obj) {
+            ADL.XAPIWrapper.sendStatement(initializedStmt, function (resp) {
                 ADL.XAPIWrapper.log("Response from LRS: " + resp.status + " - " + resp.statusText);
             });
+            this.lastSentStatement = STATEMENT_INITIALIZED;
             ADL.XAPIWrapper.log(initializedStmt);
         }
+    }
 
-        /***************************************************************************************/
-        /***** VIDEO.JS CC-Subtitle Track Change Event | xAPI Interacted Statement **********************************/
-        /*************************************************************************************/
-
-        tracks.addEventListener("change", function (e) {
-            sendCCSubtitle = true; //Set Flag to sendCCSubtitle change statement. 
-
-            setTimeout(function () { //Add a delay of 20 milliseconds so intermediate change events generated by VideoJS are not sent
-
-                if (sendCCSubtitle) {
-                    ADL.XAPIWrapper.log("sendCCSubtitle: " + sendCCSubtitle);
-                    sendCCSubtitle = false;
-                    ccEnabled = false;
-                    ccLanguage = "";
-
-
-                    // get the current date and time and throw it into a variable for xAPI timestamp
-                    var dateTime = new Date();
-                    var timeStamp = dateTime.toISOString();
-
-                    // get the current time position in the video
-                    var resultExtTime = formatFloat(myPlayer.currentTime());
-
-                    //Captions/Subtitles values
-                    for (var i = 0; i < tracks.length; i++) {
-                        var track = tracks[i];
-
-                        // If it is showing then CC is enabled and determine the language
-                        if (track.mode === 'showing') {
-                            ccEnabled = true;
-                            ccLanguage = track.language;
-                        }
-                    }
-
-                    // prepare the xAPI interacted statement
-                    var interactedStatement = {
-                        "actor": actor,
-                        "verb": {
-                            "id": "http://adlnet.gov/expapi/verbs/interacted",
-                            "display": {
-                                "en-US": "interacted"
-                            }
-                        },
-                        "object": {
-                            "id": objectID,
-                            "definition": {
-                                "name": {
-                                    "en-US": activityTitle
-                                },
-                                "description": {
-                                    "en-US": activityDesc
-                                },
-                                "type": "https://w3id.org/xapi/video/activity-type/video"
-                            },
-                            "objectType": "Activity"
-                        },
-                        "result": {
-                            "extensions": {
-                                "https://w3id.org/xapi/video/extensions/time": resultExtTime
-                            }
-                        },
-                        "context": {
-                            "contextActivities": {
-                                "category": [{
-                                    "id": "https://w3id.org/xapi/video"
-                                }]
-                            },
-                            "extensions": {
-                                "https://w3id.org/xapi/video/extensions/session-id": sessionID,
-                                "https://w3id.org/xapi/video/extensions/cc-enabled": ccEnabled,
-                                "https://w3id.org/xapi/video/extensions/cc-subtitle-lang": ccLanguage,
-                            }
-                        },
-                        "timestamp": timeStamp
-                    };
-
-                    interactedStatement = add_registration_if_exists(interactedStatement);
-                    //send CC-Subtitle change statement to the LRS
-                    ADL.XAPIWrapper.log("interacted statement (CC-Subtitle change) sent");
-                    ADL.XAPIWrapper.sendStatement(interactedStatement, function (resp, obj) {
-                        ADL.XAPIWrapper.log("Response from LRS: " + resp.status + " - " + resp.statusText);
-                    });
-                    ADL.XAPIWrapper.log(interactedStatement);
-                }
-            }, 20);
-        });
-
-        /***************************************************************************************/
-        /***** VIDEO.JS ended Event | xAPI Paused Statement ********************/
-        /*************************************************************************************/
-        // Ended is ignored, because it can cause 2 "paused" xapi event, and is not sent by Youtube player.
-        // myPlayer.on("ended", function () {
-        //     ADL.XAPIWrapper.log("ended");
-        //     send_paused();
-        // });
-
-        /***************************************************************************************/
-        /***** VIDEO.JS Seeking/UserInactive Event | xAPI Seeked Statement ********************/
-        /*************************************************************************************/
-
-        myPlayer.on("userinactive", function () {
-            ADL.XAPIWrapper.log("userinactive");
-            send_seeked();
-        });
-
-        myPlayer.on("seeking", function () {
-            ADL.XAPIWrapper.log("seeking", "previousTime=" + previousTime, "currentTime=" + myPlayer.currentTime(), "seekStart=" + seekStart);
-            // Storing the currentTime at the moment of this seeking event is done = the timeline position before the first seeking event is done.
-            // This seekStart timestamp is not updated until "seeked" xAPI event is sent, with the from=[seekStart] and to=[last timeline position requested by a seeking event]
-            if (seekStart === null && previousTime !== 0 || seekStart === 0) {
-                seekStart = previousTime;
-                ADL.XAPIWrapper.log('seek start: ' + seekStart);
-            }
-        });
-
-        function send_seeked() {
-            if (seekStart !== null) {
-                if (Math.abs(seekStart - currentTime) < 1) //Ignore seeking if seeked for less than 1 second gap in video
-                {
-                    seekStart = null; //reset seek
-                    return;
-                }
-                ADL.XAPIWrapper.log("seeked:" + seekStart + "[.]" + currentTime);
-
-                // get the current date and time and throw it into a variable for xAPI timestamp
-                var dateTime = new Date();
-                var timeStamp = dateTime.toISOString();
-
-                // change the played segment in the video
-                end_played_segment(seekStart);
-                start_played_segment(currentTime);
-
-                var seekedStmt = {
-                    "actor": actor,
-                    "verb": {
-                        "id": "https://w3id.org/xapi/video/verbs/seeked",
-                        "display": {
-                            "en-US": "seeked"
-                        }
-                    },
-                    "object": {
-                        "id": objectID,
-                        "definition": {
-                            "name": {
-                                "en-US": activityTitle
-                            },
-                            "description": {
-                                "en-US": activityDesc
-                            },
-                            "type": "https://w3id.org/xapi/video/activity-type/video"
-                        },
-                        "objectType": "Activity"
-                    },
-                    "result": {
-                        "extensions": {
-                            "https://w3id.org/xapi/video/extensions/time-from": seekStart,
-                            "https://w3id.org/xapi/video/extensions/time-to": currentTime
-                        }
-                    },
-                    "context": {
-                        "contextActivities": {
-                            "category": [{
-                                "id": "https://w3id.org/xapi/video"
-                            }]
-                        },
-                        "extensions": {
-                            "https://w3id.org/xapi/video/extensions/session-id": sessionID
-
-                        }
-                    },
-                    "timestamp": timeStamp
-                };
-
-                seekedStmt = add_registration_if_exists(seekedStmt);
-
-                seekStart = null; //reset seek
-
-                //send seeked statement to the LRS
-                ADL.XAPIWrapper.log("seeked statement sent");
-                ADL.XAPIWrapper.sendStatement(seekedStmt, function (resp, obj) {
-                    ADL.XAPIWrapper.log("Response from LRS: " + resp.status + " - " + resp.statusText);
-                });
-                ADL.XAPIWrapper.log(seekedStmt);
-            }
-        }
-
-        /***************************************************************************************/
-        /***** VIDEO.JS Played Event | xAPI Played Statement **********************************/
-        /*************************************************************************************/
-
-        myPlayer.on("play", function () {
-            //	myPlayer.currentTime(20);
-            if (started === false) {
-                video_start();
-            }
-
-            // Check that if a seeking was done and not yet treated by a userinactive event listener. If exists, seeked statement is sent.
-            send_seeked();
-
-            // vet the video length
-            var length = myPlayer.duration();
+    played() {
+        if (!this.terminatedSent) {
+            console.log("xAPI event sending : Played. ViewedSegments=" + this.video.completionState.viewedSegments + " completed=" + this.video.isCompleted());
+            let length = this.video.duration;
 
             // get the current date and time and throw it into a variable for xAPI timestamp
-            var dateTime = new Date();
-            var timeStamp = dateTime.toISOString();
+            let dateTime = new Date();
+            let timeStamp = dateTime.toISOString();
 
             // get the current time position in the video
-            var resultExtTime = fixed_play_time(formatFloat(myPlayer.currentTime()));
-            start_played_segment(resultExtTime);
+            let resultExtTime = formatFloat(this.video.completionState.position);
 
-
-            var playedStmt = {
-                "actor": actor,
+            let playedStmt = {
+                "actor": this.actor,
                 "verb": {
                     "id": "https://w3id.org/xapi/video/verbs/played",
                     "display": {
@@ -532,7 +468,7 @@
                     }
                 },
                 "object": {
-                    "id": objectID,
+                    "id": this.objectID,
                     "definition": {
                         "name": {
                             "en-US": activityTitle
@@ -557,163 +493,41 @@
                     },
                     "extensions": {
                         "https://w3id.org/xapi/video/extensions/length": length,
-                        "https://w3id.org/xapi/video/extensions/session-id": sessionID
+                        "https://w3id.org/xapi/video/extensions/session-id": this.sessionID
 
                     }
                 },
                 "timestamp": timeStamp
             };
 
-            playedStmt = add_registration_if_exists(playedStmt);
+            playedStmt = addRegistration(playedStmt);
             //send played statement to the LRS
             ADL.XAPIWrapper.log("played statement sent");
-            ADL.XAPIWrapper.sendStatement(playedStmt, function (resp, obj) {
+            ADL.XAPIWrapper.sendStatement(playedStmt, function (resp) {
                 ADL.XAPIWrapper.log("Response from LRS: " + resp.status + " - " + resp.statusText);
             });
+            this.lastSentStatement = STATEMENT_PLAYED;
             ADL.XAPIWrapper.log(playedStmt);
-        });
+        }
+    }
 
-        /***************************************************************************************/
-        /***** VIDEO.JS Paused Event | xAPI Paused Statement **********************************/
-        /*************************************************************************************/
+    completed() {
+        // Only sent once, and if not terminated
+        if (!this.completionSent && !this.terminatedSent) {
+            console.log("xAPI event sending : Completed. ViewedSegments=" + this.video.completionState.viewedSegments + " completed=" + this.video.isCompleted());
+            let dateTime = new Date();
+            let timeStamp = dateTime.toISOString();
 
-        myPlayer.on("pause", function () {
-            console.log("Received pause");
-            send_paused();
-        });
-
-
-        function send_paused() {
-            // get the current date and time and throw it into a variable for xAPI timestamp
-            var dateTime = new Date();
-            var timeStamp = dateTime.toISOString();
-
-            // get the video length
-            var length = myPlayer.duration();
-
-            // get the current time position in the video
-            var resultExtTime = formatFloat(myPlayer.currentTime());
-            end_played_segment(resultExtTime);
+            let length = this.video.duration;
 
             // get the progress percentage and put it in a variable called progress
-            var progress = get_progress();
+            let progress = this.video.getCompletionPercentage();
             ADL.XAPIWrapper.log("video progress percentage:" + progress + ".");
 
+            let duration = "PT" + formatFloat(this.video.completionState.getViewedDuration()).toFixed(2) + "S";
 
-            if (progress >= 1) {
-                send_completed();
-
-            }
-            var pausedStmt = {
-                "actor": actor,
-                "verb": {
-                    "id": "https://w3id.org/xapi/video/verbs/paused",
-                    "display": {
-                        "en-US": "paused"
-                    }
-                },
-                "object": {
-                    "id": objectID,
-                    "definition": {
-                        "name": {
-                            "en-US": activityTitle
-                        },
-                        "description": {
-                            "en-US": activityDesc
-                        },
-                        "type": "https://w3id.org/xapi/video/activity-type/video"
-                    },
-                    "objectType": "Activity"
-                },
-                "result": {
-                    "extensions": {
-                        "https://w3id.org/xapi/video/extensions/time": resultExtTime,
-                        "https://w3id.org/xapi/video/extensions/progress": progress,
-                        "https://w3id.org/xapi/video/extensions/played-segments": played_segments
-                    }
-                },
-                "context": {
-                    "contextActivities": {
-                        "category": [{
-                            "id": "https://w3id.org/xapi/video"
-                        }]
-                    },
-                    "extensions": {
-                        "https://w3id.org/xapi/video/extensions/length": length,
-                        "https://w3id.org/xapi/video/extensions/session-id": sessionID
-
-                    }
-                },
-                "timestamp": timeStamp
-            };
-
-            pausedStmt = add_registration_if_exists(pausedStmt);
-            //send paused statement to the LRS
-            ADL.XAPIWrapper.log("paused statement sent");
-            ADL.XAPIWrapper.sendStatement(pausedStmt, function (resp, obj) {
-                ADL.XAPIWrapper.log("Response from LRS: " + resp.status + " - " + resp.statusText);
-            });
-            ADL.XAPIWrapper.log(pausedStmt);
-
-            if (terminate_player)
-                TerminateMyPlayer();
-        }
-
-        /***************************************************************************************/
-        /***** VIDEO.JS Video Completion | xAPI Completed Statement **********************************/
-        /*************************************************************************************/
-        var next_completion_check = 0;
-        var completion_sent = false;
-
-        function check_completion() {
-            if (completion_sent) {
-                ADL.XAPIWrapper.log("completed statement already sent");
-                return;
-            }
-
-            var currentTimestamp = (new Date()).getTime();
-
-            if (currentTimestamp < next_completion_check) {
-                //ADL.XAPIWrapper.log(new Date(next_completion_check) + " in " + (next_completion_check - currentTimestamp)/1000 + " seconds");
-                return;
-            }
-            var length = myPlayer.duration();
-            ADL.XAPIWrapper.log("length: " + length);
-            if (length <= 0)
-                return;
-
-            var progress = get_progress();
-
-            var remaining_seconds = (1 - progress) * length;
-            //ADL.XAPIWrapper.log("remaining_seconds: " + remaining_seconds);
-            next_completion_check = currentTimestamp + remaining_seconds.toFixed(3) * 1000;
-            ADL.XAPIWrapper.log("Progress: " + progress + " currentTimestamp: " + currentTimestamp + " next completion check in " + (next_completion_check - currentTimestamp) / 1000 + " seconds");
-
-            if (progress >= 1) {
-                send_completed();
-            }
-        }
-
-        function send_completed() {
-            if (completion_sent) {
-                ADL.XAPIWrapper.log("completed statement already sent");
-                return;
-            }
-            // get the current date and time and throw it into a variable for xAPI timestamp
-            var dateTime = new Date();
-            var timeStamp = dateTime.toISOString();
-
-            var length = myPlayer.duration();
-
-            // get the progress percentage and put it in a variable called progress
-            var progress = get_progress();
-            ADL.XAPIWrapper.log("video progress percentage:" + progress + ".");
-
-            var duration = calculate_duration();
-            duration = "PT" + formatFloat(duration).toFixed(2) + "S";
-
-            var completedStmt = {
-                "actor": actor,
+            let completedStmt = {
+                "actor": this.actor,
                 "verb": {
                     "id": "http://adlnet.gov/expapi/verbs/completed",
                     "display": {
@@ -721,7 +535,7 @@
                     }
                 },
                 "object": {
-                    "id": objectID,
+                    "id": this.objectID,
                     "definition": {
                         "name": {
                             "en-US": activityTitle
@@ -737,9 +551,9 @@
                     "duration": duration,
                     "completion": true,
                     "extensions": {
-                        "https://w3id.org/xapi/video/extensions/time": currentTime,
+                        "https://w3id.org/xapi/video/extensions/time": formatFloat(this.video.completionState.position),
                         "https://w3id.org/xapi/video/extensions/progress": progress,
-                        "https://w3id.org/xapi/video/extensions/played-segments": played_segments
+                        "https://w3id.org/xapi/video/extensions/played-segments": this.video.completionState.viewedSegments
                     }
                 },
                 "context": {
@@ -749,7 +563,7 @@
                         }]
                     },
                     "extensions": {
-                        "https://w3id.org/xapi/video/extensions/session-id": sessionID,
+                        "https://w3id.org/xapi/video/extensions/session-id": this.sessionID,
                         "https://w3id.org/xapi/video/extensions/length": length,
                         "https://w3id.org/xapi/video/extensions/completion-threshold": "1.0"
 
@@ -759,64 +573,45 @@
                 "timestamp": timeStamp
             };
 
-            completedStmt = add_registration_if_exists(completedStmt);
+            completedStmt = addRegistration(completedStmt);
             //send completed statement to the LRS
             ADL.XAPIWrapper.log("completed statement sent");
-            ADL.XAPIWrapper.sendStatement(completedStmt, function (resp, obj) {
+            ADL.XAPIWrapper.sendStatement(completedStmt, function (resp) {
                 ADL.XAPIWrapper.log("Response from LRS: " + resp.status + " - " + resp.statusText);
             });
-            completion_sent = true;
+            this.completionSent = true;
+            this.lastSentStatement = STATEMENT_COMPLETED;
             ADL.XAPIWrapper.log(completedStmt);
-            // create a modal window for the user to terminate the session and dispose of the player
-            terminateModal();
         }
-
-        /***************************************************************************************/
-        /***** VIDEO.JS  Seekable Event | xAPI Seeked Statement *******************************/
-        /*************************************************************************************/
-
-
-        // get seekable start & end points
-        var previousTime = 0;
-        var currentTime = 0;
-        var seekStart = null;
-
-        myPlayer.on("timeupdate", function () {
-            previousTime = currentTime;
-            currentTime = formatFloat(myPlayer.currentTime());
-            check_completion();
-            check_volumechange();
-        });
-
-        /***************************************************************************************/
-        /***** VIDEO.JS Modal Close Event | xAPI Terminated Statement ************************/
-
-        /*************************************************************************************/
-
-        function terminateModal() {
-
-            var modal = myPlayer.createModal('The video has ended. Click the close button to exit.');
-            modal.on('modalclose', function () {
-                TerminateMyPlayer();
-            });
-
+        if (this.terminateStrategy === TERMINATE_STRATEGY_ONCOMPLETED_ANDCONTINUE) {
+            this.terminated();
+        } else if (this.terminateStrategy === TERMINATE_STRATEGY_ONCOMPLETED_ANDSTOP) {
+            this.terminated();
+            this.videoPlayer.dispose();
+            document.getElementById('videoMessage').innerHTML += videoIsTerminated;
+        } else if (this.terminateStrategy === TERMINATE_STRATEGY_ONACTION) {
+            // No call for terminated: it will be called by an action. No action after the "completed" statement is sent.
         }
+    }
 
+    terminated() {
+        if (!this.terminatedSent) {
+            if (this.lastSentStatement !== STATEMENT_PAUSED) {
+                this.paused();
+            }
 
-        function TerminateMyPlayer() {
-
-            // get the current date and time and throw it into a variable for xAPI timestamp
-            var dateTime = new Date();
-            var timeStamp = dateTime.toISOString();
+            console.log("xAPI event sending : Terminated. ViewedSegments=" + this.video.completionState.viewedSegments + " completed=" + this.video.isCompleted());
+            let dateTime = new Date();
+            let timeStamp = dateTime.toISOString();
 
             // get the progress percentage and put it in a variable called progress
-            var progress = get_progress();
+            let progress = this.video.getCompletionPercentage();
             ADL.XAPIWrapper.log("video progress percentage:" + progress + ".");
 
-            var length = myPlayer.duration();
+            let length = this.video.duration;
 
-            var terminatedStmt = {
-                "actor": actor,
+            let terminatedStmt = {
+                "actor": this.actor,
                 "verb": {
                     "id": "http://adlnet.gov/expapi/verbs/terminated",
                     "display": {
@@ -824,7 +619,7 @@
                     }
                 },
                 "object": {
-                    "id": objectID,
+                    "id": this.objectID,
                     "definition": {
                         "name": {
                             "en-US": activityTitle
@@ -838,9 +633,9 @@
                 },
                 "result": {
                     "extensions": {
-                        "https://w3id.org/xapi/video/extensions/time": currentTime,
+                        "https://w3id.org/xapi/video/extensions/time": formatFloat(this.video.completionState.position),
                         "https://w3id.org/xapi/video/extensions/progress": progress,
-                        "https://w3id.org/xapi/video/extensions/played-segments": played_segments
+                        "https://w3id.org/xapi/video/extensions/played-segments": this.video.completionState.viewedSegments
                     }
                 },
                 "context": {
@@ -851,7 +646,7 @@
                     },
                     "extensions": {
                         "https://w3id.org/xapi/video/extensions/length": length,
-                        "https://w3id.org/xapi/video/extensions/session-id": sessionID,
+                        "https://w3id.org/xapi/video/extensions/session-id": this.sessionID,
                         "https://w3id.org/xapi/video/extensions/completion-threshold": "1.0"
 
                     }
@@ -859,63 +654,43 @@
                 "timestamp": timeStamp
             };
 
-            terminatedStmt = add_registration_if_exists(terminatedStmt);
             //send completed statement to the LRS
             ADL.XAPIWrapper.log("terminated statement sent");
-            ADL.XAPIWrapper.sendStatement(terminatedStmt, function (resp, obj) {
+            ADL.XAPIWrapper.sendStatement(terminatedStmt, function (resp) {
                 ADL.XAPIWrapper.log("Response from LRS: " + resp.status + " - " + resp.statusText);
             });
+            this.terminatedSent = true;
+            this.lastSentStatement = STATEMENT_TERMINATED;
             ADL.XAPIWrapper.log(terminatedStmt);
-            myPlayer.dispose();
-        };
-
-
-        /***************************************************************************************/
-        /***** VIDEO.JS VolumeChange Event | xAPI Interacted Statement ************************/
-        /*************************************************************************************/
-        var volume_changed_on = null,
-            volume_changed_at = 0;
-        myPlayer.on("volumechange", function () {
-            var currentTimestamp = (new Date()).getTime();
-            volume_changed_on = currentTimestamp;
-            volume_changed_at = currentTime;
-        });
-
-        function check_volumechange() {
-            var currentTimestamp = (new Date()).getTime();
-            if (volume_changed_on != null && currentTimestamp > volume_changed_on + 2000) {
-                send_volumechange(volume_changed_on, volume_changed_at);
-                volume_changed_on = null;
-            }
         }
+    }
 
-        function send_volumechange(volume_changed_on, volume_changed_at) {
-            // get the current date and time and throw it into a variable for xAPI timestamp
-            var dateTime = new Date(volume_changed_on);
-            var timeStamp = dateTime.toISOString();
+    paused() {
+        if (!this.terminatedSent) {
+            console.log("xAPI event sending : Paused. ViewedSegments=" + this.video.completionState.viewedSegments + " completed=" + this.video.isCompleted());
+            let dateTime = new Date();
+            let timeStamp = dateTime.toISOString();
 
-            // get user volume and return it as a percentage
-            var isMuted = myPlayer.muted();
+            // get the video length
+            let length = this.video.duration;
 
-            if (isMuted === true) {
-                var volumeChange = 0;
-            }
-            if (isMuted === false) {
-                var volumeChange = formatFloat(myPlayer.volume());
-            }
+            // get the current time position in the video
+            let resultExtTime = formatFloat(this.video.completionState.position);
 
-            ADL.XAPIWrapper.log("volume set to: " + volumeChange);
+            // get the progress percentage and put it in a variable called progress
+            let progress = this.video.getCompletionPercentage();
+            ADL.XAPIWrapper.log("video progress percentage:" + progress + ".");
 
-            var volChangeStmt = {
-                "actor": actor,
+            let pausedStmt = {
+                "actor": this.actor,
                 "verb": {
-                    "id": "http://adlnet.gov/expapi/verbs/interacted",
+                    "id": "https://w3id.org/xapi/video/verbs/paused",
                     "display": {
-                        "en-US": "interacted"
+                        "en-US": "paused"
                     }
                 },
                 "object": {
-                    "id": objectID,
+                    "id": this.objectID,
                     "definition": {
                         "name": {
                             "en-US": activityTitle
@@ -929,7 +704,9 @@
                 },
                 "result": {
                     "extensions": {
-                        "https://w3id.org/xapi/video/extensions/time": volume_changed_at
+                        "https://w3id.org/xapi/video/extensions/time": resultExtTime,
+                        "https://w3id.org/xapi/video/extensions/progress": progress,
+                        "https://w3id.org/xapi/video/extensions/played-segments": this.video.completionState.viewedSegments
                     }
                 },
                 "context": {
@@ -939,177 +716,191 @@
                         }]
                     },
                     "extensions": {
-                        "https://w3id.org/xapi/video/extensions/session-id": sessionID,
-                        "https://w3id.org/xapi/video/extensions/volume": volumeChange
+                        "https://w3id.org/xapi/video/extensions/length": length,
+                        "https://w3id.org/xapi/video/extensions/session-id": this.sessionID
+                    }
+                },
+                "timestamp": timeStamp
+            };
+
+            pausedStmt = addRegistration(pausedStmt);
+            //send paused statement to the LRS
+            ADL.XAPIWrapper.log("paused statement sent");
+            ADL.XAPIWrapper.sendStatement(pausedStmt, function (resp) {
+                ADL.XAPIWrapper.log("Response from LRS: " + resp.status + " - " + resp.statusText);
+            });
+            this.lastSentStatement = STATEMENT_PAUSED;
+            ADL.XAPIWrapper.log(pausedStmt);
+        }
+    }
+
+    volumeChange() {
+        if (!this.terminatedSent) {
+            console.log("xAPI event sending : VolumeChange.");
+            let dateTime = new Date();
+            let timeStamp = dateTime.toISOString();
+
+            // get user volume and return it as a percentage
+            let isMuted = this.videoPlayer.muted();
+
+            let volume;
+            if (isMuted === true) {
+                volume = 0;
+            }
+            if (isMuted === false) {
+                volume = formatFloat(this.videoPlayer.volume());
+            }
+
+            ADL.XAPIWrapper.log("volume set to: " + volume);
+
+            let volChangeStmt = {
+                "actor": this.actor,
+                "verb": {
+                    "id": "http://adlnet.gov/expapi/verbs/interacted",
+                    "display": {
+                        "en-US": "interacted"
+                    }
+                },
+                "object": {
+                    "id": this.objectID,
+                    "definition": {
+                        "name": {
+                            "en-US": activityTitle
+                        },
+                        "description": {
+                            "en-US": activityDesc
+                        },
+                        "type": "https://w3id.org/xapi/video/activity-type/video"
+                    },
+                    "objectType": "Activity"
+                },
+                "result": {
+                    "extensions": {
+                        "https://w3id.org/xapi/video/extensions/time": this.video.completionState.position
+                    }
+                },
+                "context": {
+                    "contextActivities": {
+                        "category": [{
+                            "id": "https://w3id.org/xapi/video"
+                        }]
+                    },
+                    "extensions": {
+                        "https://w3id.org/xapi/video/extensions/session-id": this.sessionID,
+                        "https://w3id.org/xapi/video/extensions/volume": volume
 
                     }
                 },
                 "timestamp": timeStamp
             };
 
-            volChangeStmt = add_registration_if_exists(volChangeStmt);
+            volChangeStmt = addRegistration(volChangeStmt);
             //send volume change statement to the LRS
             ADL.XAPIWrapper.log("interacted statement (volume change) sent");
-            ADL.XAPIWrapper.sendStatement(volChangeStmt, function (resp, obj) {
+            ADL.XAPIWrapper.sendStatement(volChangeStmt, function (resp) {
                 ADL.XAPIWrapper.log("Response from LRS: " + resp.status + " - " + resp.statusText);
             });
+            this.lastSentStatement = STATEMENT_INTERACTED;
             ADL.XAPIWrapper.log(volChangeStmt);
         }
-
-        /***************************************************************************************/
-        /***** VIDEO.JS Fullscreen Event | xAPI Interacted Statement **************************/
-        /*************************************************************************************/
-
-        myPlayer.on("fullscreenchange", function () {
-
-            // check to see if the player is in fullscreen mode
-            var fullScreenOrNot = myPlayer.isFullscreen();
-            // ADL.XAPIWrapper.log("full screen:" + fullScreenOrNot);
-
-            // if full screen true, then send an interacted statement
-            if (fullScreenOrNot === true) {
-
-                // get the current date and time and throw it into a variable for xAPI timestamp
-                var dateTime = new Date();
-                var timeStamp = dateTime.toISOString();
-
-                // get the current time position in the video
-                var resultExtTime = formatFloat(myPlayer.currentTime());
-
-                // get the current screen size
-                var screenSize = "";
-                screenSize += screen.width + "x" + screen.height;
-
-                // get the playback size of the video
-                var playbackSize = "";
-                playbackSize += myPlayer.currentWidth() + "x" + myPlayer.currentHeight();
-                //alert ("Playback Size:" + playbackSize);
-
-                var fullScreenTrueStmt = {
-                    "actor": actor,
-                    "verb": {
-                        "id": "http://adlnet.gov/expapi/verbs/interacted",
-                        "display": {
-                            "en-US": "interacted"
-                        }
-                    },
-                    "object": {
-                        "id": objectID,
-                        "definition": {
-                            "name": {
-                                "en-US": activityTitle
-                            },
-                            "description": {
-                                "en-US": activityDesc
-                            },
-                            "type": "https://w3id.org/xapi/video/activity-type/video"
-                        },
-                        "objectType": "Activity"
-                    },
-                    "result": {
-                        "extensions": {
-                            "https://w3id.org/xapi/video/extensions/time": resultExtTime
-                        }
-                    },
-                    "context": {
-                        "contextActivities": {
-                            "category": [{
-                                "id": "https://w3id.org/xapi/video"
-                            }]
-                        },
-                        "extensions": {
-                            "https://w3id.org/xapi/video/extensions/session-id": sessionID,
-                            "https://w3id.org/xapi/video/extensions/full-screen": fullScreenOrNot,
-                            "https://w3id.org/xapi/video/extensions/screen-size": screenSize,
-                            "https://w3id.org/xapi/video/extensions/video-playback-size": playbackSize
-
-                        }
-                    },
-                    "timestamp": timeStamp
-                };
-
-                fullScreenTrueStmt = add_registration_if_exists(fullScreenTrueStmt);
-                //send full screen statement to the LRS
-                ADL.XAPIWrapper.log("interacted statement (fullScreen true) sent");
-                ADL.XAPIWrapper.sendStatement(fullScreenTrueStmt, function (resp, obj) {
-                    ADL.XAPIWrapper.log("Response from LRS: " + resp.status + " - " + resp.statusText);
-                });
-                ADL.XAPIWrapper.log(fullScreenTrueStmt);
-            }
-
-            // if fullScreen is false then send a different interacted statement
-            if (fullScreenOrNot === false) {
-
-                // get the current date and time and throw it into a variable for xAPI timestamp
-                var dateTime = new Date();
-                var timeStamp = dateTime.toISOString();
-
-                // get the current time position in the video
-                var resultExtTime = formatFloat(myPlayer.currentTime());
-
-                // get the current screen size
-                var screenSize = "";
-                screenSize += screen.width + "x" + screen.height;
-
-                // get the playback size of the video
-                var playbackSize = "";
-                playbackSize += myPlayer.currentWidth() + "x" + myPlayer.currentHeight();
-                //alert ("Playback Size:" + playbackSize);
-
-                var fullScreenFalseStmt = {
-                    "actor": actor,
-                    "verb": {
-                        "id": "http://adlnet.gov/expapi/verbs/interacted",
-                        "display": {
-                            "en-US": "interacted"
-                        }
-                    },
-                    "object": {
-                        "id": objectID,
-                        "definition": {
-                            "name": {
-                                "en-US": activityTitle
-                            },
-                            "description": {
-                                "en-US": activityDesc
-                            },
-                            "type": "https://w3id.org/xapi/video/activity-type/video"
-                        },
-                        "objectType": "Activity"
-                    },
-                    "result": {
-                        "extensions": {
-                            "https://w3id.org/xapi/video/extensions/time": resultExtTime
-                        }
-                    },
-                    "context": {
-                        "contextActivities": {
-                            "category": [{
-                                "id": "https://w3id.org/xapi/video"
-                            }]
-                        },
-                        "extensions": {
-                            "https://w3id.org/xapi/video/extensions/session-id": sessionID,
-                            "https://w3id.org/xapi/video/extensions/full-screen": fullScreenOrNot,
-                            "https://w3id.org/xapi/video/extensions/screen-size": screenSize,
-                            "https://w3id.org/xapi/video/extensions/video-playback-size": playbackSize
-
-                        }
-                    },
-                    "timestamp": timeStamp
-                };
-
-                fullScreenFalseStmt = add_registration_if_exists(fullScreenFalseStmt);
-                //send exit full screen statement to the LRS
-                ADL.XAPIWrapper.log("interacted statement (fullscreen false) sent");
-                ADL.XAPIWrapper.sendStatement(fullScreenFalseStmt, function (resp, obj) {
-                    ADL.XAPIWrapper.log("Response from LRS: " + resp.status + " - " + resp.statusText);
-                });
-                ADL.XAPIWrapper.log(fullScreenFalseStmt);
-            }
-        });
     }
 
+    fullScreenChange() {
+        if (!this.terminatedSent) {
+            console.log("xAPI event sending : FullScreenChange.");
+            // check to see if the player is in fullscreen mode
+            let isFullScreen = this.videoPlayer.isFullscreen();
 
-    ADL.XAPIVideoJS = XAPIVideoJS;
-}(window.ADL = window.ADL || {}));
+            // get the current date and time and throw it into a variable for xAPI timestamp
+            let dateTime = new Date();
+            let timeStamp = dateTime.toISOString();
+
+            // get the current time position in the video
+            let resultExtTime = formatFloat(this.video.completionState.position);
+
+            // get the current screen size
+            let screenSize = "";
+            screenSize += screen.width + "x" + screen.height;
+
+            // get the playback size of the video
+            let playbackSize = "";
+            playbackSize += this.videoPlayer.currentWidth() + "x" + this.videoPlayer.currentHeight();
+            //alert ("Playback Size:" + playbackSize);
+
+            let fullScreenStmt = {
+                "actor": this.actor,
+                "verb": {
+                    "id": "http://adlnet.gov/expapi/verbs/interacted",
+                    "display": {
+                        "en-US": "interacted"
+                    }
+                },
+                "object": {
+                    "id": this.objectID,
+                    "definition": {
+                        "name": {
+                            "en-US": activityTitle
+                        },
+                        "description": {
+                            "en-US": activityDesc
+                        },
+                        "type": "https://w3id.org/xapi/video/activity-type/video"
+                    },
+                    "objectType": "Activity"
+                },
+                "result": {
+                    "extensions": {
+                        "https://w3id.org/xapi/video/extensions/time": resultExtTime
+                    }
+                },
+                "context": {
+                    "contextActivities": {
+                        "category": [{
+                            "id": "https://w3id.org/xapi/video"
+                        }]
+                    },
+                    "extensions": {
+                        "https://w3id.org/xapi/video/extensions/session-id": this.sessionID,
+                        "https://w3id.org/xapi/video/extensions/full-screen": isFullScreen,
+                        "https://w3id.org/xapi/video/extensions/screen-size": screenSize,
+                        "https://w3id.org/xapi/video/extensions/video-playback-size": playbackSize
+
+                    }
+                },
+                "timestamp": timeStamp
+            };
+
+            fullScreenStmt = addRegistration(fullScreenStmt);
+            //send full screen statement to the LRS
+            ADL.XAPIWrapper.log("interacted statement (fullScreen change) sent");
+            ADL.XAPIWrapper.sendStatement(fullScreenStmt, function (resp) {
+                ADL.XAPIWrapper.log("Response from LRS: " + resp.status + " - " + resp.statusText);
+            });
+            this.lastSentStatement = STATEMENT_INTERACTED;
+            ADL.XAPIWrapper.log(fullScreenStmt);
+        }
+    }
+}
+
+function addRegistration(statement) {
+    if (typeof ADL.XAPIWrapper.lrs.registration == "string" && ADL.XAPIWrapper.lrs.registration.length === 36) {
+        // var registration = ADL.XAPIWrapper.lrs.registration;
+        if (typeof statement["context"] === undefined)
+            statement["context"] = {};
+        statement["context"]["registration"] = ADL.XAPIWrapper.lrs.registration;
+    }
+    return statement;
+}
+
+function formatFloat(number) {
+    if (number == null)
+        return null;
+    return +(parseFloat(number).toFixed(3));
+}
+
+function terminateVideo() {
+    videoEventListener.videoProfileListener.terminated();
+    videoEventListener.videoPlayer.dispose();
+    document.getElementById('videoMessage').innerHTML += videoIsTerminated;
+    document.getElementById('terminate_video_form').style.visibility = 'hidden';
+}

@@ -79,3 +79,6 @@ $string['popupwidthexplain'] = 'Specifies default width of popup windows.';
 $string['click'] = 'Click ';
 $string['videolink'] = 'link to view the video.';
 
+$string['videoIsTerminated'] = 'The video is terminated. Please navigate back to the course.';
+$string['terminateVideo'] = 'Terminate the video.';
+
