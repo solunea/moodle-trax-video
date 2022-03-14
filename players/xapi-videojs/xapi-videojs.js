@@ -30,12 +30,11 @@ class Video {
     }
 
     isCompleted() {
-        // TODO : problem : this function compares the total time of viewed segments to the total duration, but should check if the viewed segments cover the whole video!
         if (isNaN(this.duration)) {
-            console.log("Duration is NAN");
+            //console.log("Duration is NAN");
             return false;
         } else {
-            console.log("Viewed=" + this.completionState.getViewedDuration() + " Duration=" + this.duration);
+            //console.log("Viewed=" + this.completionState.getViewedDuration() + " Duration=" + this.duration);
             return this.completionState.getViewedDuration() + this.completionMarginInSeconds > this.duration;
         }
     }
@@ -64,10 +63,8 @@ class CompletionState {
 
     /**
      *  Sum of duration of viewed segments with total video duration.
-     * @returns {float}
      */
     getViewedDuration() {
-        // TODO : problem : we do not check if segments are sumed up even if the're overlaping on other segments.
         // Possible values :
         // startX[.]  -> must add current position as end
         // startX[.]endX
@@ -76,25 +73,60 @@ class CompletionState {
             return false;
         }
 
+        // Ensure that the segments end by the current position.
         let currentViewedSegments = this.viewedSegments;
         if (currentViewedSegments.endsWith("[.]")) {
             currentViewedSegments += this.position;
         }
 
-        let segmentsDuration = 0.0;
-        let segment = [];
-        currentViewedSegments.split("[,]").forEach(function (v, i) {
-            segment[i] = v.split("[.]");
-            if (parseFloat(segment[i][1]) > parseFloat(segment[i][0])) {
-                if (parseFloat(segment[i][1]) > parseFloat(segment[i][0])) {
-                    segmentsDuration += (parseFloat(segment[i][1]) - parseFloat(segment[i][0]));
-                }
-            }
+        // How to check if viewed segments cover all the video ? -> Klee's algorithm
+        // We create an array of :
+        // - start position, is it en ending point of the segment ? -> false
+        // - end position, is it en ending point of the segment ? -> true
+        // Exemple : [ [startX, false] , [endX, true] ...]
+        // Viewed seconds are rounded to closest integer.
+        let segments = [];
+        currentViewedSegments.split("[,]").forEach(function (v) {
+            let segment = v.split("[.]");
+            segments.push([parseFloat(segment[0]).toFixed(3), false]);
+            segments.push([parseFloat(segment[1]).toFixed(3), true]);
         });
+        // Sorting all points by their position, and keeping if they're an ending point of a segment [ [startX, false] , [startY, false] , [endX, false] , ...]
+        let sortedSegments = segments.sort(function (a, b) {
+            return a[0] - b[0];
+        });
+        let segmentsDuration = 0.0;
+        // The count of opened segments parsed (more starting points are parsed, rather than ending ones)
+        let counter = 0;
+        for (let i = 0; i < sortedSegments.length; i++) {
+            // We are in open points: we add the difference between previous and current point (either opening or closing).
+            if (counter > 0) {
+                segmentsDuration += sortedSegments[i][0] - sortedSegments[i - 1][0];
+            }
+            // Update the current opening points parsed : down if current point is an ending point, up if the point is a start point.
+            sortedSegments[i][1] ? counter-- : counter++;
+        }
         return segmentsDuration;
+
+        // Wrong implementation : we do not check if segments are sumed up even if the're overlaping on other segments.
+        // let segmentsDuration = 0.0;
+        // let segment = [];
+        // currentViewedSegments.split("[,]").forEach(function (v, i) {
+        //     segment[i] = v.split("[.]");
+        //     if (parseFloat(segment[i][1]) > parseFloat(segment[i][0])) {
+        //         if (parseFloat(segment[i][1]) > parseFloat(segment[i][0])) {
+        //             segmentsDuration += (parseFloat(segment[i][1]) - parseFloat(segment[i][0]));
+        //         }
+        //     }
+        // });
+        // return segmentsDuration;
     }
 
     startSegment(position) {
+        if (this.viewedSegments.endsWith("[.]")) {
+            // A segment was started but not ended. We end it.
+            this.viewedSegments += position;
+        }
         if (this.viewedSegments !== "") {
             this.viewedSegments += "[,]";
         }
@@ -127,7 +159,7 @@ class VideoEventListener {
         this.video.textTracks = videoPlayer.textTracks();
         this.videoProfileListener = new VideoProfileListener(this.video, videoPlayer, objectID, sessionID, sendCCSubtitle, actor);
         videoPlayer.on("timeupdate", function () {
-            console.log("==timeupdate==  current=" + formatFloat(self.videoPlayer.currentTime()) + "  position=" + self.video.completionState.position);
+            // console.log("==timeupdate==  current=" + formatFloat(self.videoPlayer.currentTime()) + "  position=" + self.video.completionState.position);
             // If the timeupdate is more than 1 second, it's not a normal play increment, it's a user interaction to move elsewhere
             let currentPosition = formatFloat(self.videoPlayer.currentTime());
             if (Math.abs(currentPosition - self.video.completionState.position) > 1) {
@@ -139,10 +171,10 @@ class VideoEventListener {
             // We do not test completion, because it may be sent with incomplet segments and position: completed will be tested on pause (=by user or by end)
         });
         videoPlayer.on("seeked", function () {
-            console.log("==seeked==  current=" + formatFloat(self.videoPlayer.currentTime()) + "  position=" + self.video.completionState.position);
+            // console.log("==seeked==  current=" + formatFloat(self.videoPlayer.currentTime()) + "  position=" + self.video.completionState.position);
             switch (self.video.state) {
                 case VIDEO_STATE_NOTSTARTED:
-                    console.log("VideoEventListener : no action on 'Seeked', as it was not played yet.");
+                    // console.log("VideoEventListener : no action on 'Seeked', as it was not played yet.");
                     break;
                 case VIDEO_STATE_PLAYING:
                     self.video.completionState.endSegment(self.video.completionState.position);
@@ -158,14 +190,14 @@ class VideoEventListener {
                     self.video.completionState.position = formatFloat(self.videoPlayer.currentTime());
                     break;
                 default:
-                    console.log("VideoPlayer 'Seeked' event not treated, because current video object state is " + self.video.completionState);
+                    // console.log("VideoPlayer 'Seeked' event not treated, because current video object state is " + self.video.completionState);
             }
         });
         videoPlayer.on("seeking", function () {
-            console.log("==seeking==  current=" + formatFloat(self.videoPlayer.currentTime()) + "  position=" + self.video.completionState.position);
+            // console.log("==seeking==  current=" + formatFloat(self.videoPlayer.currentTime()) + "  position=" + self.video.completionState.position);
             switch (self.video.state) {
                 case VIDEO_STATE_NOTSTARTED:
-                    console.log("VideoEventListener : no action on 'Seeking', as it was not played yet.");
+                    // console.log("VideoEventListener : no action on 'Seeking', as it was not played yet.");
                     break;
                 case VIDEO_STATE_PLAYING:
                     self.video.completionState.position = formatFloat(self.videoPlayer.currentTime());
@@ -181,14 +213,14 @@ class VideoEventListener {
                     self.videoProfileListener.played();
                     break;
                 default:
-                    console.log("VideoPlayer 'Paused' event not treated, because current video object state is " + self.video.completionState);
+                    // console.log("VideoPlayer 'Paused' event not treated, because current video object state is " + self.video.completionState);
             }
         });
         videoPlayer.on("ended", function () {
-            console.log("==ended==");
+            // console.log("==ended==");
             switch (self.video.state) {
                 case VIDEO_STATE_NOTSTARTED:
-                    console.log("VideoEventListener : no action on 'Ended', as it was not played yet.");
+                    // console.log("VideoEventListener : no action on 'Ended', as it was not played yet.");
                     break;
                 case VIDEO_STATE_PLAYING:
                     self.video.state = VIDEO_STATE_ENDED;
@@ -206,14 +238,14 @@ class VideoEventListener {
                     }
                     break;
                 case VIDEO_STATE_ENDED:
-                    console.log("VideoEventListener : no action on 'Ended', as it was ended.");
+                    // console.log("VideoEventListener : no action on 'Ended', as it was ended.");
                     break;
                 default:
-                    console.log("VideoEventListener : videoPlayer 'Ended' event not treated, because current video object state is " + self.video.completionState);
+                    // console.log("VideoEventListener : videoPlayer 'Ended' event not treated, because current video object state is " + self.video.completionState);
             }
         });
         videoPlayer.on("play", function () {
-            console.log("==play==");
+            // console.log("==play==");
             switch (self.video.state) {
                 case VIDEO_STATE_NOTSTARTED:
                     // First start event, the video wasn't played yet
@@ -228,7 +260,7 @@ class VideoEventListener {
                     }
                     break;
                 case VIDEO_STATE_PLAYING:
-                    console.log("VideoEventListener : no action on 'Played', as it was already playing.");
+                    // console.log("VideoEventListener : no action on 'Played', as it was already playing.");
                     break;
                 case VIDEO_STATE_INPAUSE:
                     self.video.state = VIDEO_STATE_PLAYING;
@@ -249,14 +281,14 @@ class VideoEventListener {
                     }
                     break;
                 default:
-                    console.log("VideoEventListener : videoPlayer 'Played' event not treated, because current video object state is " + self.video.completionState);
+                    // console.log("VideoEventListener : videoPlayer 'Played' event not treated, because current video object state is " + self.video.completionState);
             }
         });
         videoPlayer.on("pause", function () {
-            console.log("==pause==");
+            // console.log("==pause==");
             switch (self.video.state) {
                 case VIDEO_STATE_NOTSTARTED:
-                    console.log("VideoEventListener : no action on 'Pause' event, as it was not played yet.");
+                    // console.log("VideoEventListener : no action on 'Pause' event, as it was not played yet.");
                     break;
                 case VIDEO_STATE_PLAYING:
                     self.video.state = VIDEO_STATE_INPAUSE;
@@ -268,21 +300,21 @@ class VideoEventListener {
                     }
                     break;
                 case VIDEO_STATE_INPAUSE:
-                    console.log("VideoEventListener : no action, as it was already paused.");
+                    // console.log("VideoEventListener : no action, as it was already paused.");
                     break;
                 case VIDEO_STATE_ENDED:
-                    console.log("VideoEventListener : no action, as it cannot be ended while paused.");
+                    // console.log("VideoEventListener : no action, as it cannot be ended while paused.");
                     break;
                 default:
-                    console.log("VideoPlayer 'Paused' event not treated, because current video object state is " + self.video.completionState);
+                    // console.log("VideoPlayer 'Paused' event not treated, because current video object state is " + self.video.completionState);
             }
         });
         videoPlayer.on("fullscreenchange", function () {
-            console.log("==fullscreenchange==");
+            // console.log("==fullscreenchange==");
             self.videoProfileListener.fullScreenChange();
         });
         videoPlayer.on("volumechange", function () {
-            console.log("==volumechange==");
+            // console.log("==volumechange==");
             self.videoProfileListener.volumeChange();
         });
     }
@@ -320,6 +352,7 @@ class VideoProfileListener {
     actor;
     completionSent = false;
     terminatedSent = false;
+    initializedSent = false;
     lastSentStatement = "";
     // TODO retrieve this information from activity configuration (parameter in Trax Video activity)
     terminateStrategy = TERMINATE_STRATEGY_ONACTION;
@@ -338,8 +371,8 @@ class VideoProfileListener {
     }
 
     initialized() {
-        if (!this.terminatedSent) {
-            console.log("xAPI event sending : Initialized.");
+        if (!this.terminatedSent && !this.initializedSent) {
+            // console.log("xAPI event sending : Initialized.");
             // get the current date and time and throw it into a variable for xAPI timestamp
             let dateTime = new Date();
             let timeStamp = dateTime.toISOString();
@@ -443,13 +476,14 @@ class VideoProfileListener {
                 ADL.XAPIWrapper.log("Response from LRS: " + resp.status + " - " + resp.statusText);
             });
             this.lastSentStatement = STATEMENT_INITIALIZED;
+            this.initializedSent = true;
             ADL.XAPIWrapper.log(initializedStmt);
         }
     }
 
     played() {
         if (!this.terminatedSent) {
-            console.log("xAPI event sending : Played. ViewedSegments=" + this.video.completionState.viewedSegments + " completed=" + this.video.isCompleted());
+            // console.log("xAPI event sending : Played. ViewedSegments=" + this.video.completionState.viewedSegments + " completed=" + this.video.isCompleted());
             let length = this.video.duration;
 
             // get the current date and time and throw it into a variable for xAPI timestamp
@@ -514,7 +548,7 @@ class VideoProfileListener {
     completed() {
         // Only sent once, and if not terminated
         if (!this.completionSent && !this.terminatedSent) {
-            console.log("xAPI event sending : Completed. ViewedSegments=" + this.video.completionState.viewedSegments + " completed=" + this.video.isCompleted());
+            // console.log("xAPI event sending : Completed. ViewedSegments=" + this.video.completionState.viewedSegments + " completed=" + this.video.isCompleted());
             let dateTime = new Date();
             let timeStamp = dateTime.toISOString();
 
@@ -600,7 +634,7 @@ class VideoProfileListener {
                 this.paused();
             }
 
-            console.log("xAPI event sending : Terminated. ViewedSegments=" + this.video.completionState.viewedSegments + " completed=" + this.video.isCompleted());
+            // console.log("xAPI event sending : Terminated. ViewedSegments=" + this.video.completionState.viewedSegments + " completed=" + this.video.isCompleted());
             let dateTime = new Date();
             let timeStamp = dateTime.toISOString();
 
@@ -667,7 +701,7 @@ class VideoProfileListener {
 
     paused() {
         if (!this.terminatedSent) {
-            console.log("xAPI event sending : Paused. ViewedSegments=" + this.video.completionState.viewedSegments + " completed=" + this.video.isCompleted());
+            // console.log("xAPI event sending : Paused. ViewedSegments=" + this.video.completionState.viewedSegments + " completed=" + this.video.isCompleted());
             let dateTime = new Date();
             let timeStamp = dateTime.toISOString();
 
@@ -735,8 +769,8 @@ class VideoProfileListener {
     }
 
     volumeChange() {
-        if (!this.terminatedSent) {
-            console.log("xAPI event sending : VolumeChange.");
+        if (!this.terminatedSent && this.initializedSent) {
+            // console.log("xAPI event sending : VolumeChange.");
             let dateTime = new Date();
             let timeStamp = dateTime.toISOString();
 
@@ -806,8 +840,8 @@ class VideoProfileListener {
     }
 
     fullScreenChange() {
-        if (!this.terminatedSent) {
-            console.log("xAPI event sending : FullScreenChange.");
+        if (!this.terminatedSent && this.initializedSent) {
+            // console.log("xAPI event sending : FullScreenChange.");
             // check to see if the player is in fullscreen mode
             let isFullScreen = this.videoPlayer.isFullscreen();
 
