@@ -1,7 +1,7 @@
 let videoEventListener;
 
 (function (ADL) {
-    ADL.XAPIVideoJS = function (target) {
+    ADL.XAPIVideoJS = function (target, terminateStrategy) {
         let myPlayer = videojs(target);
 
         let objectID = activityIri;
@@ -9,7 +9,7 @@ let videoEventListener;
         let sendCCSubtitle = false;
         let actor = JSON.parse(ADL.XAPIWrapper.lrs.actor);
 
-        videoEventListener = new VideoEventListener(myPlayer, objectID, sessionID, sendCCSubtitle, actor);
+        videoEventListener = new VideoEventListener(myPlayer, objectID, sessionID, sendCCSubtitle, actor, terminateStrategy);
     };
 }(window.ADL = window.ADL || {}));
 
@@ -152,12 +152,12 @@ class VideoEventListener {
     video;
     videoProfileListener;
 
-    constructor(videoPlayer, objectID, sessionID, sendCCSubtitle, actor) {
+    constructor(videoPlayer, objectID, sessionID, sendCCSubtitle, actor, terminateStrategy) {
         let self = this;
         this.videoPlayer = videoPlayer;
         this.video = new Video();
         this.video.textTracks = videoPlayer.textTracks();
-        this.videoProfileListener = new VideoProfileListener(this.video, videoPlayer, objectID, sessionID, sendCCSubtitle, actor);
+        this.videoProfileListener = new VideoProfileListener(this.video, videoPlayer, objectID, sessionID, sendCCSubtitle, actor, terminateStrategy);
         videoPlayer.on("timeupdate", function () {
             // console.log("==timeupdate==  current=" + formatFloat(self.videoPlayer.currentTime()) + "  position=" + self.video.completionState.position);
             // If the timeupdate is more than 1 second, it's not a normal play increment, it's a user interaction to move elsewhere
@@ -190,7 +190,7 @@ class VideoEventListener {
                     self.video.completionState.position = formatFloat(self.videoPlayer.currentTime());
                     break;
                 default:
-                    // console.log("VideoPlayer 'Seeked' event not treated, because current video object state is " + self.video.completionState);
+                // console.log("VideoPlayer 'Seeked' event not treated, because current video object state is " + self.video.completionState);
             }
         });
         videoPlayer.on("seeking", function () {
@@ -213,7 +213,7 @@ class VideoEventListener {
                     self.videoProfileListener.played();
                     break;
                 default:
-                    // console.log("VideoPlayer 'Paused' event not treated, because current video object state is " + self.video.completionState);
+                // console.log("VideoPlayer 'Paused' event not treated, because current video object state is " + self.video.completionState);
             }
         });
         videoPlayer.on("ended", function () {
@@ -241,7 +241,7 @@ class VideoEventListener {
                     // console.log("VideoEventListener : no action on 'Ended', as it was ended.");
                     break;
                 default:
-                    // console.log("VideoEventListener : videoPlayer 'Ended' event not treated, because current video object state is " + self.video.completionState);
+                // console.log("VideoEventListener : videoPlayer 'Ended' event not treated, because current video object state is " + self.video.completionState);
             }
         });
         videoPlayer.on("play", function () {
@@ -281,7 +281,7 @@ class VideoEventListener {
                     }
                     break;
                 default:
-                    // console.log("VideoEventListener : videoPlayer 'Played' event not treated, because current video object state is " + self.video.completionState);
+                // console.log("VideoEventListener : videoPlayer 'Played' event not treated, because current video object state is " + self.video.completionState);
             }
         });
         videoPlayer.on("pause", function () {
@@ -306,7 +306,7 @@ class VideoEventListener {
                     // console.log("VideoEventListener : no action, as it cannot be ended while paused.");
                     break;
                 default:
-                    // console.log("VideoPlayer 'Paused' event not treated, because current video object state is " + self.video.completionState);
+                // console.log("VideoPlayer 'Paused' event not treated, because current video object state is " + self.video.completionState);
             }
         });
         videoPlayer.on("fullscreenchange", function () {
@@ -354,16 +354,30 @@ class VideoProfileListener {
     terminatedSent = false;
     initializedSent = false;
     lastSentStatement = "";
-    // TODO retrieve this information from activity configuration (parameter in Trax Video activity)
     terminateStrategy = TERMINATE_STRATEGY_ONACTION;
 
-    constructor(video, videoPlayer, objectID, sessionID, sendCCSubtitle, actor) {
+    constructor(video, videoPlayer, objectID, sessionID, sendCCSubtitle, actor, terminateStrategy) {
         this.video = video;
         this.videoPlayer = videoPlayer;
         this.objectID = objectID;
         this.sessionID = sessionID;
         this.sendCCSubtitle = sendCCSubtitle;
         this.actor = actor;
+
+        switch (terminateStrategy) {
+            case TERMINATE_STRATEGY_ONACTION:
+                this.terminateStrategy = TERMINATE_STRATEGY_ONACTION;
+                break;
+            case TERMINATE_STRATEGY_ONCOMPLETED_ANDCONTINUE:
+                this.terminateStrategy = TERMINATE_STRATEGY_ONCOMPLETED_ANDCONTINUE;
+                break;
+            case TERMINATE_STRATEGY_ONCOMPLETED_ANDSTOP:
+                this.terminateStrategy = TERMINATE_STRATEGY_ONCOMPLETED_ANDSTOP;
+                break;
+            default:
+                console.log("Terminated strategy value '" + terminateStrategy + "' invalid: defaulted to " + TERMINATE_STRATEGY_ONACTION);
+                this.terminateStrategy = TERMINATE_STRATEGY_ONACTION;
+        }
 
         if (this.terminateStrategy === TERMINATE_STRATEGY_ONACTION) {
             document.getElementById('terminate_video_form').style.visibility = 'visible';

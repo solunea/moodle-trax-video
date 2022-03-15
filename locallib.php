@@ -34,6 +34,12 @@ class TraxVideoConfig {
     const TRAXLIB_DISPLAY_POPUP = 6;
 }
 
+class TraxTerminatedVideoConfig {
+    const TRAXLIB_TERMINATED_ONACTION = 0;
+    const TRAXLIB_TERMINATED_ONCOMPLETE_ANDSTOP = 1;
+    const TRAXLIB_TERMINATED_ONCOMPLETE_ANDCONTINUE = 2;
+}
+
 /**
  * Mark the activity completed (if required) and trigger the course_module_viewed event.
  *

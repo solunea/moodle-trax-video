@@ -49,7 +49,6 @@ if ($hassiteconfig) {
         get_string('popupwidth', 'traxvideo'), get_string('popupwidthexplain', 'traxvideo'), 620, PARAM_INT, 7));
     $settings->add(new admin_setting_configtext('traxvideo/popupheight',
         get_string('popupheight', 'traxvideo'), get_string('popupheightexplain', 'traxvideo'), 450, PARAM_INT, 7));
-
 }
 
 

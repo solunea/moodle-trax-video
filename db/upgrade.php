@@ -24,7 +24,8 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-function xmldb_traxvideo_upgrade($oldversion) {
+function xmldb_traxvideo_upgrade($oldversion)
+{
     global $DB;
 
     $dbman = $DB->get_manager();
@@ -58,10 +59,16 @@ function xmldb_traxvideo_upgrade($oldversion) {
     }
 
     if ($oldversion < 2022030701) {
-         set_config('displayoptions', '0,1,3,5,6');
-         set_config('display', '0');
-         set_config('popupwidth', '620');
-         set_config('popupheight', '450');
+        set_config('displayoptions', '0,1,3,5,6');
+        set_config('display', '0');
+        set_config('popupwidth', '620');
+        set_config('popupheight', '450');
+    }
+
+    if ($oldversion < 2022030703) {
+        $table = new xmldb_table('traxvideo');
+        $field = new xmldb_field('terminate', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, 0);
+        $dbman->add_field($table, $field);
     }
 
     return true;

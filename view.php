@@ -135,6 +135,12 @@ function startsWith($haystack, $needle)
 
     <script type="text/javascript">
         const videoIsTerminated = "<?php echo get_string('videoIsTerminated', 'traxvideo'); ?>";
+        let terminateStrategy = -1;
+        <?php
+
+        if (property_exists($activity, 'terminate')) {
+            echo 'terminateStrategy = '.$activity->terminate. ';';
+        } ?>
 
         ADL.XAPIWrapper.log.debug = false;
         if (ADL.XAPIWrapper.lrs.actor === undefined) {
@@ -148,7 +154,7 @@ function startsWith($haystack, $needle)
         var activityIri = "<?php echo $front->activityid ?>";
         var activityTitle = "<?php echo $front->activityname ?>";
         var activityDesc = '';
-        ADL.XAPIVideoJS("xapi-videojs");
+        ADL.XAPIVideoJS("xapi-videojs",terminateStrategy);
 
     </script>
 

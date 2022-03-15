@@ -74,3 +74,14 @@ $string['videolink'] = 'pour afficher la vidéo.';
 $string['videoIsTerminated'] = 'La vidéo est terminée. Vous pouvez retourner dans le cours.';
 $string['terminateVideo'] = 'Terminer la vidéo.';
 
+$string['terminateSelect'] = 'Envoi de l\'état Terminé';
+$string['terminateSelect_help'] = 'Configuration de l\'envoi du statement xAPI "Terminated" :
+
+* Sur demande de l\'apprenant - Un bouton permet de déclarer la vidéo terminée à tout moment. Une fois cliqué, le statement "Terminated" est envoyé, et la vidéo est masquée.
+* À complétion, puis arrêt -  Une fois la lecture de la vidéo complétée, le statement "Terminated" est envoyé, et la vidéo est masquée.
+*À complétion, sans arrêt - Une fois la lecture de la vidéo complétée, le statement "Terminated" est envoyé, mais la vidéo n\'est pas masquée et peut continuer à être lue. En revanche, quelles que soient les actions sur la vidéo, plus aucun statement ne sera envoyé.
+';
+$string['terminateOnAction'] = 'Sur demande de l\'apprenant';
+$string['terminateOnCompleteStop'] = 'À complétion, puis arrêt';
+$string['terminateOnCompleteContinue'] = 'À complétion, sans arrêt';
+

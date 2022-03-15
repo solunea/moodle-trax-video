@@ -24,28 +24,6 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-///** Try the best way */
-//!defined('TRAXLIB_DISPLAY_AUTO') && define('TRAXLIB_DISPLAY_AUTO', 0);
-////const TRAXLIB_DISPLAY_AUTO = 0;
-///** Display using object tag */
-//!defined('TRAXLIB_DISPLAY_EMBED') && define('TRAXLIB_DISPLAY_EMBED', 1);
-////const TRAXLIB_DISPLAY_EMBED = 1;
-///** Display inside frame */
-//!defined('TRAXLIB_DISPLAY_FRAME') && define('TRAXLIB_DISPLAY_FRAME', 2);
-////const TRAXLIB_DISPLAY_FRAME = 2;
-///** Display normal link in new window */
-//!defined('TRAXLIB_DISPLAY_NEW') && define('TRAXLIB_DISPLAY_NEW', 3);
-////const TRAXLIB_DISPLAY_NEW = 3;
-///** Force download of file instead of display */
-//!defined('TRAXLIB_DISPLAY_DOWNLOAD') && define('TRAXLIB_DISPLAY_DOWNLOAD', 4);
-////const TRAXLIB_DISPLAY_DOWNLOAD = 4;
-///** Open directly */
-//!defined('TRAXLIB_DISPLAY_OPEN') && define('TRAXLIB_DISPLAY_OPEN', 5);
-////const TRAXLIB_DISPLAY_OPEN = 5;
-///** Open in "emulated" pop-up without navigation */
-//!defined('TRAXLIB_DISPLAY_POPUP') && define('TRAXLIB_DISPLAY_POPUP', 6);
-////const TRAXLIB_DISPLAY_POPUP = 6;
-///
 /**
  * Return the list if Moodle features this module supports.
  *

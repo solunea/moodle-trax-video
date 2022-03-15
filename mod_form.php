@@ -63,6 +63,12 @@ class mod_traxvideo_mod_form extends moodleform_mod
         $mform->addHelpButton('poster', 'poster', 'traxvideo');
         $mform->setDefault('poster', 'http://vjs.zencdn.net/v/oceans.png');
 
+        // Terminated strategy
+        $mform->addElement('select', 'terminate', get_string('terminateSelect', 'traxvideo'), $this->get_terminating_options());
+        $mform->setType('terminate', PARAM_INT);
+        $mform->setDefault('terminate', 0);
+        $mform->addHelpButton('terminate', 'terminateSelect', 'traxvideo');
+
         //-------------------------------------------------------
         $mform->addElement('header', 'optionssection', get_string('appearance'));
 
@@ -113,6 +119,17 @@ class mod_traxvideo_mod_form extends moodleform_mod
                 $default_values['popupheight'] = $displayoptions['popupheight'];
             }
         }
+    }
+
+    /**
+     * Returns list of available options for terminating video.
+     * @return array of key=>name pairs
+     */
+    function get_terminating_options()
+    {
+        return array(TraxTerminatedVideoConfig::TRAXLIB_TERMINATED_ONACTION => get_string('terminateOnAction', 'traxvideo'),
+            TraxTerminatedVideoConfig::TRAXLIB_TERMINATED_ONCOMPLETE_ANDSTOP => get_string('terminateOnCompleteStop', 'traxvideo'),
+            TraxTerminatedVideoConfig::TRAXLIB_TERMINATED_ONCOMPLETE_ANDCONTINUE => get_string('terminateOnCompleteContinue', 'traxvideo'));
     }
 
     /**

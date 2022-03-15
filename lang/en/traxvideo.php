@@ -82,3 +82,14 @@ $string['videolink'] = 'link to view the video.';
 $string['videoIsTerminated'] = 'The video is terminated. Please navigate back to the course.';
 $string['terminateVideo'] = 'Terminate the video.';
 
+$string['terminateSelect'] = 'Terminated state event';
+$string['terminateSelect_help'] = 'Configure when to send the Terminated xAPI statement:
+
+* On user action - A "Click to Terminate" button is shown. When clicked, the Terminated statement is sent, and the video is disposed.
+* When completed and stop video - When video is completed, the Terminated statement is sent, and the video is disposed.
+* When completed and continue video - When video is completed, the Terminated statement is sent, but the video is still playable. Further video actions are possible, but will not generate any xAPI statement.
+';
+$string['terminateOnAction'] = 'On user action';
+$string['terminateOnCompleteStop'] = 'When completed and stop video';
+$string['terminateOnCompleteContinue'] = 'When completed and continue video';
+
