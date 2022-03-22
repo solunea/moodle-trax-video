@@ -333,15 +333,15 @@ const STATEMENT_INTERACTED = "interacted";
  */
 const TERMINATE_STRATEGY_ONACTION = 0;
 /**
- * The Terminate xAPI statement is sent when the video is completed. The video can continue to be played, but no more statement will be sent.
- * @type {number}
- */
-const TERMINATE_STRATEGY_ONCOMPLETED_ANDCONTINUE = 1;
-/**
  * The Terminate xAPI statement is sent when the video is completed. The videois disposed, and cannot be played without a new initializaion.
  * @type {number}
  */
-const TERMINATE_STRATEGY_ONCOMPLETED_ANDSTOP = 2;
+const TERMINATE_STRATEGY_ONCOMPLETED_ANDSTOP = 1;
+/**
+ * The Terminate xAPI statement is sent when the video is completed. The video can continue to be played, but no more statement will be sent.
+ * @type {number}
+ */
+const TERMINATE_STRATEGY_ONCOMPLETED_ANDCONTINUE = 2;
 
 class VideoProfileListener {
     video;
