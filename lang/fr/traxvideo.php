@@ -79,7 +79,7 @@ $string['terminateSelect_help'] = 'Configuration de l\'envoi du statement xAPI "
 
 * Sur demande de l\'apprenant - Un bouton permet de déclarer la vidéo terminée à tout moment. Une fois cliqué, le statement "Terminated" est envoyé, et la vidéo est masquée.
 * À complétion, puis arrêt -  Une fois la lecture de la vidéo complétée, le statement "Terminated" est envoyé, et la vidéo est masquée.
-*À complétion, sans arrêt - Une fois la lecture de la vidéo complétée, le statement "Terminated" est envoyé, mais la vidéo n\'est pas masquée et peut continuer à être lue. En revanche, quelles que soient les actions sur la vidéo, plus aucun statement ne sera envoyé.
+* À complétion, sans arrêt - Une fois la lecture de la vidéo complétée, le statement "Terminated" est envoyé, mais la vidéo n\'est pas masquée et peut continuer à être lue. En revanche, quelles que soient les actions sur la vidéo, plus aucun statement ne sera envoyé.
 ';
 $string['terminateOnAction'] = 'Sur demande de l\'apprenant';
 $string['terminateOnCompleteStop'] = 'À complétion, puis arrêt';
